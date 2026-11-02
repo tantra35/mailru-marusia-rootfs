@@ -47,6 +47,30 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 
 ## Сборка rootfs с нуля
 
+### Оригинальный рецепт упаковки (автор образа, [комментарий в статье](https://debianlive.ru/2026/08/vk-mini-legacy-amlogic-a113x-%D1%87%D0%B0%D1%81%D1%82%D1%8C-1-%D1%81%D1%82%D0%B0%D0%B2%D0%B8%D0%BC-alpine-%D1%81%D0%BE-%D1%81%D0%B2%D0%B5%D0%B6%D0%B8%D0%BC-%D0%BC%D0%B0%D0%B9%D0%BD%D0%BB%D0%B0/), mtd-utils 2.3.0)
+
+```bash
+mkfs.ubifs \
+  --root alpine \
+  --min-io-size 2048 \
+  --leb-size 126976 \
+  --max-leb-cnt 1661 \
+  --compr zstd \
+  --space-fixup \
+  --output rootfs.ubifs
+
+ubinize \
+  --output alpine3.24.1_rootfs.ubi \
+  --peb-size 131072 \
+  --min-io-size 2048 \
+  --vid-hdr-offset 2048 \
+  ubinize.cfg
+```
+
+`ubinize.cfg` — как наш `build/ubinize.ini` (rootfs, dynamic, autoresize). `--max-leb-cnt 1661` = 1696 PEB − 2 (таблица томов) − 33 (~2% резерв под bad-блоки).
+
+**Наша сборка (`rebuild.sh`) сознательно не использует `--space-fixup`** (флаги образа = 0, не 4): флешер стирает весь регион перед записью, поэтому фальшиво-стёртых страниц в образе нет, а fixup-бурст первого монтирования (~11 с перезаписи всех свободных LEB) на изношенном/обесточенном NAND приводил к коррупции индекса /usr/lib. На здоровом NAND авторский вариант с `--space-fixup` корректен.
+
 Требования: Linux x86_64, `qemu-user-binfmt`, `git`, сетевой доступ к dl-cdn.alpinelinux.org.
 
 ```bash
