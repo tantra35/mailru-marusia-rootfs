@@ -1,0 +1,9 @@
+#!/bin/sh
+
+mpg123 /etc/kde_startup_sound.mp3 &> /dev/null &
+clockdisp --anim blink && clockdisp --anim angry && clockdisp --anim wink &
+ringled --duration 7000 rainbow 1000
+ringled off
+
+sleep 3
+/usr/local/bin/check-secure.sh

@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+description="Bluetooth pairing without a screen"
+supervisor="supervise-daemon"
+command="/usr/bin/bt-agent"
+command_args="--capability=NoInputNoOutput"
+respawn_delay=2
+
+depend() {
+	need bluetooth
+}
+
+start_post() {
+	# the adapter comes up a moment later; close the pairing window then,
+	# without holding up the boot
+	(
+		for i in 1 2 3 4 5 6 7 8 9 10; do
+			timeout 2 bluetoothctl show | grep -q 'Powered: yes' && break
+			sleep 1
+		done
+		/usr/local/bin/bt-pair off
+	) >/dev/null 2>&1 &
+}
+

@@ -1,0 +1,20 @@
+# /etc/inittab -- VK Marusia Mini
+#
+# Two consoles, and neither of them is a virtual terminal: this kernel is
+# built without CONFIG_VT, so the tty1..tty6 lines Alpine ships by default
+# would respawn getty against devices that do not exist.
+#
+#   ttyAML0  the AO UART, on test pads -- no connector, wires held by hand
+#   ttyGS0   the CDC-ACM function of the USB gadget, /dev/ttyACM0 on the
+#            host. This is the console that is actually convenient.
+
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+
+ttyAML0::respawn:/sbin/getty -L ttyAML0 115200 vt100
+ttyGS0::respawn:/sbin/getty -L ttyGS0 115200 vt100
+
+::ctrlaltdel:/sbin/reboot
+::shutdown:/sbin/openrc shutdown
+::shutdown:/sbin/killall5 -15

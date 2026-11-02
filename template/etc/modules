@@ -1,0 +1,7 @@
+af_packet
+ipv6
+
+# The Wi-Fi stack sits in vlsicomm, and it has no modalias of its own: the SDIO
+# alias belongs to aml_sdio underneath it, so nothing pulls the top of the
+# stack in. modprobe works the rest out from modules.dep.
+vlsicomm

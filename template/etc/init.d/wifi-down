@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+
+description="Take the Wi-Fi interface down before the kernel restarts"
+
+: ${iface:=wlan0}
+
+depend() {
+	before killprocs mount-ro
+}
+
+start() {
+	ebegin "Releasing $iface"
+	rc-service iwd stop >/dev/null 2>&1
+	ip link set "$iface" down 2>/dev/null
+	sleep 1
+	eend 0
+}
+
+stop() {
+	return 0
+}

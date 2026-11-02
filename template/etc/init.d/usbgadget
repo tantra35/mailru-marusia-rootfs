@@ -1,0 +1,106 @@
+#!/sbin/openrc-run
+
+description="CDC composite gadget on the Type-C port: ethernet and serial"
+
+: ${gadget_dir:=/sys/kernel/config/usb_gadget/marusia}
+: ${lang_id:=0x409}
+
+: ${dev_mac:=02:1a:11:00:00:01}
+: ${host_mac:=02:1a:11:00:00:02}
+
+depend() {
+	need sysfs
+	before networking net
+}
+
+start() {
+	local udc
+
+	ebegin "Starting USB gadget"
+
+	if [ ! -d /sys/kernel/config/usb_gadget ]; then
+		eend 1 "configfs gadget support missing"
+		return 1
+	fi
+
+	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+	if [ -z "$udc" ]; then
+		eend 1 "no UDC found"
+		return 1
+	fi
+
+	mkdir -p "$gadget_dir" || { eend 1; return 1; }
+	cd "$gadget_dir" || { eend 1; return 1; }
+
+	echo 0x1d6b > idVendor		# Linux Foundation
+	echo 0x0104 > idProduct		# Multifunction Composite Gadget
+	echo 0x0200 > bcdUSB
+
+	# Windows remembers per VID/PID/bcdDevice whether a device has MS OS
+	# descriptors; 0x0100 was the ECM gadget, which had none.
+	echo 0x0200 > bcdDevice
+
+	# Both functions span two interfaces, and Windows groups them by their
+	# IADs only when the device declares the Miscellaneous/IAD class.
+	echo 0xef > bDeviceClass
+	echo 0x02 > bDeviceSubClass
+	echo 0x01 > bDeviceProtocol
+
+	mkdir -p strings/$lang_id
+	echo "0000000000000001"      > strings/$lang_id/serialnumber
+	echo "Marusia Mini mainline" > strings/$lang_id/manufacturer
+	echo "AXG bring-up gadget"   > strings/$lang_id/product
+
+	mkdir -p configs/c.1/strings/$lang_id
+	echo "NCM + ACM" > configs/c.1/strings/$lang_id/configuration
+	echo 250 > configs/c.1/MaxPower
+
+	# NCM rather than ECM: Windows 10 and 11 ship an NCM driver and no ECM
+	# one. The WINNCM compatible ID names that driver in the MS OS
+	# descriptor.
+	# The addresses only take while the function is not yet linked into a
+	# config, so they are set once, when it is created; a restart keeps them.
+	if [ ! -d functions/ncm.usb0 ]; then
+		mkdir functions/ncm.usb0
+		echo "$dev_mac"  > functions/ncm.usb0/dev_addr
+		echo "$host_mac" > functions/ncm.usb0/host_addr
+	fi
+	echo WINNCM > functions/ncm.usb0/os_desc/interface.ncm/compatible_id
+
+	mkdir -p functions/acm.gs0
+
+	echo 1       > os_desc/use
+	echo 0xcd    > os_desc/b_vendor_code
+	echo MSFT100 > os_desc/qw_sign
+
+	ln -sf functions/ncm.usb0 configs/c.1/ 2>/dev/null
+	ln -sf functions/acm.gs0  configs/c.1/ 2>/dev/null
+	ln -sf configs/c.1 os_desc/ 2>/dev/null
+
+	if ! echo "$udc" > UDC; then
+		cd /
+		eend 1 "failed to bind to $udc"
+		return 1
+	fi
+
+	cd /
+	eend 0
+}
+
+stop() {
+	ebegin "Stopping USB gadget"
+
+	[ -d "$gadget_dir" ] || { eend 0; return 0; }
+
+	echo "" > "$gadget_dir/UDC" 2>/dev/null
+
+#	rm -f "$gadget_dir"/os_desc/c.1 2>/dev/null
+#	rm -f "$gadget_dir"/configs/c.1/ncm.usb0 "$gadget_dir"/configs/c.1/acm.gs0 2>/dev/null
+#	rmdir "$gadget_dir"/configs/c.1/strings/* 2>/dev/null
+#	rmdir "$gadget_dir"/configs/c.1 2>/dev/null
+#	rmdir "$gadget_dir"/functions/* 2>/dev/null
+#	rmdir "$gadget_dir"/strings/* 2>/dev/null
+#	rmdir "$gadget_dir" 2>/dev/null
+
+	eend 0
+}

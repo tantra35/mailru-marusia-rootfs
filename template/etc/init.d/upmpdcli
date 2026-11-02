@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="UPnP AV Media Renderer front-end for MPD"
+command="/usr/bin/upmpdcli"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+depend() {
+	need mpd
+	use net
+}

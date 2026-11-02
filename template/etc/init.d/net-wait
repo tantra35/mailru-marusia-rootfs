@@ -1,0 +1,13 @@
+#!/sbin/openrc-run
+description="Ждёт IPv4 на wlan0 перед сетевыми сервисами"
+
+depend() {
+    after iwd
+    before upmpdcli mpd pulseaudio sshd
+}
+
+start() {
+    ebegin "Ждёт IPv4 на wlan0"
+    /usr/local/sbin/net-wifi-wait
+    eend $?
+}

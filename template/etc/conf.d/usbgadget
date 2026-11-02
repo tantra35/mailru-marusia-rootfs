@@ -1,0 +1,5 @@
+# Overrides for the usbgadget service. The defaults are in the service
+# itself; anything set here wins.
+#
+#dev_mac="02:1a:11:00:00:01"
+#host_mac="02:1a:11:00:00:02"

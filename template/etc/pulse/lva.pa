@@ -1,0 +1,6 @@
+# Микрофон колонки по TCP для LVA
+load-module module-native-protocol-unix
+load-module module-alsa-sink device=hw:0,0
+load-module module-alsa-source device=hw:0,1
+load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.88.0/24;192.168.14.0/24" auth-anonymous=1
+load-module module-always-sink

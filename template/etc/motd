@@ -1,0 +1,13 @@
+Welcome to Alpine!
+
+Let's test your VK Capsula (you can use commands):
+
+mic-speaker-test   - microphone and speakers (including 3.5mm jack)
+clockdisp          - display
+touch-keys         - touch buttons
+ringled            - LED ring (below buttons)
+lightmon           - light sensor
+bt-pair            - Bluetooth pairing (lets use Capsula as BT speaker)
+
+Have fun :)
+

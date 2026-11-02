@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="Bluetooth audio to the speaker"
+command="/usr/bin/bluealsa-aplay"
+command_args="--pcm=default"
+supervisor="supervise-daemon"
+respawn_delay=2
+
+depend() {
+	need bluealsa
+	after alsa
+}

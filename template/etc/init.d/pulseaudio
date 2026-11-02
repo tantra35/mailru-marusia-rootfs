@@ -1,0 +1,8 @@
+#!/sbin/openrc-run
+description="PulseAudio: микрофон колонки по TCP для LVA"
+
+command="/usr/bin/pulseaudio"
+command_args="-n -F /etc/pulse/lva.pa --system --disallow-exit"
+command_background="yes"
+pidfile="/run/pulseaudio.pid"
+start_stop_daemon_args="--make-pidfile"

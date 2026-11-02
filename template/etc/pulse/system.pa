@@ -1,0 +1,4 @@
+# Системный профиль (если демон запускается в system mode)
+load-module module-udev-detect
+load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.88.0/24" auth-anonymous=1
+load-module module-always-sink

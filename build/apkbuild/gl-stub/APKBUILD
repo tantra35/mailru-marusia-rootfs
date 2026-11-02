@@ -1,0 +1,17 @@
+# Заглушка GL-библиотек для headless-сборки: удовлетворяет зависимостям
+# gst-plugins-base (so:libEGL/so:libGL/so:libwayland-egl), чтобы apk не тянул
+# mesa → llvm (200+ МиБ) на устройство без экрана. Реального кода нет:
+# gst gl-элементы на колонке не используются.
+pkgname=gl-stub
+pkgver=1.0
+pkgrel=0
+pkgdesc="Stub GL/EGL sonames for headless pulseaudio (no real GL on device)"
+url="https://localhost/"
+arch="all"
+license="MIT"
+provider_priority=100
+provides="so:libEGL.so.1=1 so:libGLESv2.so.2=1 so:libGL.so.1=1 so:libwayland-egl.so.1=1 mesa-egl=1 mesa-gl=1"
+
+package() {
+	mkdir -p "$pkgdir"
+}
