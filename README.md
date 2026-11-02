@@ -90,7 +90,7 @@ sudo ./build/rebuild.sh
 ## Благодарности
 
 - [comp18man/vk-capsula-mini-a113x-linux](https://github.com/comp18man/vk-capsula-mini-a113x-linux) — ядро мейнлайн для VK Capsula Mini (автор образов и статьи)
-- [debianlive.ru — VK Mini Legacy Amlogic A113X, часть 1](https://debianlive.ru/2026/08/vk-mini-legacy-amlogic-a113x-%D1%87%D0%B0%D1%81%D1%82%D1%8C-1-%D1%81%D1%82%D0%B0%D0%B2%D0%B8%D0%BC-alpine-%D1%81%D0%BE-%D1%81%D0%B2%D0%B5%D0%B6%D0%B8%D0%BC-%D0%BC%D0%B0%D0%B9%D0%BD%D0%BB%D0%B0/ — базовая статья по установке Alpine
+- [debianlive.ru — VK Mini Legacy Amlogic A113X, часть 1](https://debianlive.ru/2026/08/vk-mini-legacy-amlogic-a113x-%D1%87%D0%B0%D1%81%D1%82%D1%8C-1-%D1%81%D1%82%D0%B0%D0%B2%D0%B8%D0%BC-alpine-%D1%81%D0%BE-%D1%81%D0%B2%D0%B5%D0%B6%D0%B8%D0%BC-%D0%BC%D0%B0%D0%B9%D0%BD%D0%BB%D0%B0/) — базовая статья по установке Alpine
 - Mail.ru — за устройство, которое можно перепрошивать
 
 ## Лицензия
