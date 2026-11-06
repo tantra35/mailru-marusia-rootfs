@@ -6,3 +6,16 @@ command_args="-n -F /etc/pulse/lva.pa --system --disallow-exit"
 command_background="yes"
 pidfile="/run/pulseaudio.pid"
 start_stop_daemon_args="--make-pidfile"
+depend() {
+	after dbus
+}
+
+# Состояние громкости (device-volumes) должен переживать перезагрузку:
+# без PULSE_STATE_PATH pa_get_state_dir берёт $HOME pulse (/var/run/pulse,
+# core-util.c:1473-1510) — tmpfs, не переживает reboot.
+start_pre() {
+	export PULSE_STATE_PATH=/var/lib/pulse
+	checkpath --directory --owner pulse:pulse --mode 0700 /var/lib/pulse
+	amixer -c 0 sset 'TODDR_A SRC SEL' 'IN 4' >/dev/null 2>&1 || true
+	mkdir -p /var/run/pulse && chown pulse:pulse /var/run/pulse 2>/dev/null || true
+}
