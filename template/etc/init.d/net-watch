@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Рестарт upmpdcli при появлении адреса на wlan0"
+command="/usr/local/sbin/net-wifi-watch"
+command_background="yes"
+pidfile="/run/net-watch.pid"
+
+depend() {
+    after net-wait
+}

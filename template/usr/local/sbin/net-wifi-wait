@@ -2,7 +2,7 @@
 # Нет сохранённых сетей (свежая прошивка) - ждать нечего
 ls /var/lib/iwd/*.psk >/dev/null 2>&1 || exit 0
 n=0
-while [ $n -lt 60 ]; do
+while [ $n -lt 120 ]; do
     ip -4 addr show dev wlan0 2>/dev/null | grep -q inet && exit 0
     sleep 1
     n=$((n + 1))
