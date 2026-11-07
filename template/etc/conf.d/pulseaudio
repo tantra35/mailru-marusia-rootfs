@@ -1,0 +1,5 @@
+# pulseaudio стартует строго после net-wait (rc_need = жёсткая зависимость,
+# в отличие от мягкого before/after, который OpenRC в полном runlevel игнорирует).
+# Безопасно: net-wifi-wait всегда exit 0 (таймаут и "нет psk" — не ошибка),
+# поэтому при отсутствии WiFi pulseaudio всё равно поднимется.
+rc_need="net-wait"
