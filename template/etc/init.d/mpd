@@ -1,0 +1,30 @@
+#!/sbin/openrc-run
+# Без supervisor=supervise-daemon — единообразно с marusia-d/upmpdcli: демон
+# без автоперезапуска. mpd держим в foreground (--no-daemon) под
+# command_background: start-stop-daemon форкает, пишет pid и уходит,
+# демон переподвешивается на init (ppid=1).
+name="Music Player Daemon"
+description="A daemon for playing music"
+
+# M_USER and M_GROUP is for backward compatibility (Alpine <3.17)
+: ${command_user:="${M_USER:-mpd}:${M_GROUP:-audio}"}
+
+command=/usr/bin/mpd
+command_args="--no-daemon"
+command_background="yes"
+pidfile="/run/mpd.pid"
+start_stop_daemon_args="--make-pidfile"
+
+# Allow mpd to configure real-time scheduling.
+capabilities="^cap_sys_nice"
+
+depend() {
+	need localmount
+	use net netmount nfsmount esound pulseaudio
+	after firewall
+}
+
+start_pre() {
+	checkpath --directory --quiet \
+		--owner "${command_user%:*}" --mode 0775 /run/mpd
+}

@@ -10,8 +10,8 @@ command_args="-mpd 127.0.0.1:6600"
 command_background="yes"
 pidfile="/run/marusia-d.pid"
 start_stop_daemon_args="--make-pidfile"
-output_logger="logger -t marusia-d"
-error_logger="logger -t marusia-d"
+# Логгеры отключены: stdout/stderr демона уходят в /dev/null (supervise-daemon
+# перекидывает fd 0/1/2 на /dev/null при детаче; без logger'ов логи не пишутся).
 
 depend() {
 	need localmount

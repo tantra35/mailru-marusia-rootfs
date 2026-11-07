@@ -1,0 +1,8 @@
+# Configuration for mpd service
+
+# Options to pass to mpd daemon.
+#command_args=
+
+# Supervisor выключен намеренно (2026-11-07): все демоны на колонке —
+# без автоперезапуска (mpd/upmpdcli/marusia-d, start-stop-daemon + pidfile).
+#supervisor=supervise-daemon

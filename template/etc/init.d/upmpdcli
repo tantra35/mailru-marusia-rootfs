@@ -1,9 +1,18 @@
 #!/sbin/openrc-run
-description="UPnP AV Media Renderer front-end for MPD"
-command="/usr/bin/upmpdcli"
+# Без supervisor=supervise-daemon — единообразно с marusia-d: демон без
+# автоперезапуска, упал = лежит до ручного rc-service upmpdcli restart.
+name="upmpdcli UPnP Media Renderer"
+description="UPnP Media Renderer front-end for MPD"
+
+command=/usr/bin/upmpdcli
+command_args="-c /etc/upmpdcli.conf"
+command_user=upmpdcli:upmpdcli
 command_background="yes"
 pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--make-pidfile"
+
 depend() {
-	need mpd
+	need mpd localmount
 	use net
+	after firewall
 }
