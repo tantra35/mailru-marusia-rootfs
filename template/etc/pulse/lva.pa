@@ -5,7 +5,10 @@
 # @DEFAULT_SINK@ (= echo_cancel_sink, SHARE_VOLUME_WITH_MASTER) перенаправляется
 # на мастер и сохраняется под ключом «sink:alsa_output.hw_0_0» — значит хук
 # обязан висеть уже к моменту создания master'а. Файл состояния —
-# $PULSE_STATE_PATH/device-volumes, сохранение с дебаунсом 10 с (:65, :156-159).
+# $PULSE_STATE_PATH/device-volumes; запись отложенная, не чаще раза в 10 с:
+# таймер заводится от ПЕРВОГО изменения и последующими не переносится
+# (trigger_save: «if (u->save_time_event) return»), sync каждые ≤10 с
+# пишет актуальное состояние (:65, :127-130, :156-160).
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
 load-module module-alsa-source device=hw:0,1
