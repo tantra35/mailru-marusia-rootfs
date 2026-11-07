@@ -12,6 +12,7 @@ allowed_interfaces="wlan0"
 #command_args=
 
 # Log messages are redirected to syslog. Set to empty string to disable.
+error_logger=""  # отключено: iwd молчит в stderr, SIGPIPE-риск не нужен
 #error_logger="logger -t iwd -p daemon.info >/dev/null 2>&1"
 
 # Number of milliseconds to wait after starting and check that daemon is

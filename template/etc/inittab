@@ -10,7 +10,7 @@
 
 ::sysinit:/sbin/openrc sysinit
 ::sysinit:/sbin/openrc boot
-::wait:/sbin/openrc default
+::once:/sbin/openrc default
 
 ttyAML0::respawn:/sbin/getty -L ttyAML0 115200 vt100
 ttyGS0::respawn:/sbin/getty -L ttyGS0 115200 vt100
