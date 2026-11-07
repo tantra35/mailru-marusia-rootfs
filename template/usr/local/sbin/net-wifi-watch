@@ -4,7 +4,7 @@
 ip monitor address | while read line; do
     case "$line" in
         Deleted*) continue ;;
-        *wlan0*inet*)
+        *wlan0*" inet "*)
             logger -t net-watch "wlan0 адрес появился: $line"
             rc-service upmpdcli restart >/dev/null 2>&1
             sleep 5
