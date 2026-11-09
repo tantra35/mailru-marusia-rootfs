@@ -30,3 +30,13 @@ set-default-sink alsa_output.hw_0_0
 load-module module-native-protocol-unix
 load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.88.0/24;192.168.14.0/24" auth-anonymous=1
 load-module module-always-sink
+# Bluetooth: телефон ведёт сам PulseAudio через bluez Media API (PA 17,
+# module-bluez5-device) — bluez-alsa выведена из рунлевела: её aplay слинкован
+# только с libasound и выводит в ALSA-default (=hw:0,0), который занят PA.
+# Поток телефона появляется у PA как bluez_source.<MAC>.a2dp_source,
+# module-bluetooth-policy (дефолт a2dp_source=true) заворачивает его loopback'ом
+# в default-sink. Громкость телефонного потока — source-громкость (AVRCP), master
+# sink она не двигает. Смена кодека (AAC/SBC) телефоном, message-API PA
+# (/card/bluez_card.*/bluez) на этой сборке не зарегистрирован — проверено live.
+load-module module-bluetooth-policy
+load-module module-bluetooth-discover
