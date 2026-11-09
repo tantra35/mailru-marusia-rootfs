@@ -12,16 +12,21 @@
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
 load-module module-alsa-source device=hw:0,1
-# AEC/NS (webrtc): вычитает из микрофона собственный playback (музыка/TTS/звуки).
-# Проверено на устройстве (05.11.2026): захват жив, подавление тона ~9 дБ.
-# Всё воспроизведение идёт через echo_cancel_sink (опорный сигнал), микрофон — echo_cancel_source.
+# AEC/NS (webrtc) ОТКЛЮЧЁН 09.11.2026 (решение юзера): давит полезный сигнал —
+# шумовая полка -61.7 dB против -48.6 dB у сырого входа (ffmpeg volumedetect,
+# один и тот же шум комнаты, оба источника). Для возврата раскомментировать
+# load-module ниже и вернуть оба set-default на echo_cancel_*.
+# Вычитает из микрофона собственный playback (музыка/TTS/звуки) — нужен ТОЛЬКО
+# если снова понадобится ассистент с музыкой на фоне.
+# Всё воспроизведение при AEC идёт через echo_cancel_sink (опорный сигнал),
+# микрофон — echo_cancel_source.
 # use_volume_sharing=false: без этого виртуальный sink имеет
 # PA_SINK_SHARE_VOLUME_WITH_MASTER → его sink-input'ы volume_writable=false
 # (sink-input.c:376-377) и flat-volumes не может протолкнуть setvol mpd в sink.
 # С false модуль сам синхронизирует громкости с мастером (mec.c:614-624).
-load-module module-echo-cancel aec_method=webrtc use_master_format=1 use_volume_sharing=false source_master=alsa_input.hw_0_1 sink_master=alsa_output.hw_0_0 source_name=echo_cancel_source sink_name=echo_cancel_sink
-set-default-source echo_cancel_source
-set-default-sink echo_cancel_sink
+#load-module module-echo-cancel aec_method=webrtc use_master_format=1 use_volume_sharing=false source_master=alsa_input.hw_0_1 sink_master=alsa_output.hw_0_0 source_name=echo_cancel_source sink_name=echo_cancel_sink
+set-default-source alsa_input.hw_0_1
+set-default-sink alsa_output.hw_0_0
 load-module module-native-protocol-unix
 load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.88.0/24;192.168.14.0/24" auth-anonymous=1
 load-module module-always-sink
