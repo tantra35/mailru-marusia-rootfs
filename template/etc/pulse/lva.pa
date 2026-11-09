@@ -35,8 +35,12 @@ load-module module-always-sink
 # только с libasound и выводит в ALSA-default (=hw:0,0), который занят PA.
 # Поток телефона появляется у PA как bluez_source.<MAC>.a2dp_source,
 # module-bluetooth-policy (дефолт a2dp_source=true) заворачивает его loopback'ом
-# в default-sink. Громкость телефонного потока — source-громкость (AVRCP), master
-# sink она не двигает. Смена кодека (AAC/SBC) телефоном, message-API PA
+# в default-sink. Громкость BT-потока = системный master sink (avrcp_absolute_
+# volume=0 ниже отключает качельку телефона). Смена кодека (AAC/SBC) телефоном,
+# message-API PA
 # (/card/bluez_card.*/bluez) на этой сборке не зарегистрирован — проверено live.
 load-module module-bluetooth-policy
-load-module module-bluetooth-discover
+# avrcp_absolute_volume=0: качелька телефона НЕ влияет на громкость колонки —
+# поток идёт full-scale, громкость BT = системный master (как у DLNA). Сам
+# bluetooth-discover (обёртка) в этой сборке не грузится — берём bluez5-discover.
+load-module module-bluez5-discover avrcp_absolute_volume=0
