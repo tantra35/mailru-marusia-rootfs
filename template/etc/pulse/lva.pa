@@ -11,7 +11,7 @@
 # пишет актуальное состояние (:65, :127-130, :156-160).
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
-load-module module-alsa-source device=hw:0,1
+load-module module-alsa-source device=micboost
 # AEC/NS (webrtc) ОТКЛЮЧЁН 09.11.2026 (решение юзера): давит полезный сигнал —
 # шумовая полка -61.7 dB против -48.6 dB у сырого входа (ffmpeg volumedetect,
 # один и тот же шум комнаты, оба источника). Для возврата раскомментировать
@@ -25,7 +25,7 @@ load-module module-alsa-source device=hw:0,1
 # (sink-input.c:376-377) и flat-volumes не может протолкнуть setvol mpd в sink.
 # С false модуль сам синхронизирует громкости с мастером (mec.c:614-624).
 #load-module module-echo-cancel aec_method=webrtc use_master_format=1 use_volume_sharing=false source_master=alsa_input.hw_0_1 sink_master=alsa_output.hw_0_0 source_name=echo_cancel_source sink_name=echo_cancel_sink
-set-default-source alsa_input.hw_0_1
+set-default-source alsa_input.micboost
 set-default-sink alsa_output.hw_0_0
 load-module module-native-protocol-unix
 load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.88.0/24;192.168.14.0/24" auth-anonymous=1
