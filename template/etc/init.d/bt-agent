@@ -1,9 +1,14 @@
 #!/sbin/openrc-run
 description="Bluetooth pairing without a screen"
-supervisor="supervise-daemon"
+# Без supervisor=supervise-daemon — единообразно с mpd/upmpdcli/marusia-d:
+# демон без автоперезапуска (упал = лежит до ручного рестарта). bt-agent
+# держится в foreground под command_background: start-stop-daemon форкает,
+# пишет pid и уходит, демон переподвешивается на init (ppid=1).
 command="/usr/bin/bt-agent"
 command_args="--capability=NoInputNoOutput"
-respawn_delay=2
+command_background="yes"
+pidfile="/run/bt-agent.pid"
+start_stop_daemon_args="--make-pidfile"
 
 depend() {
 	need bluetooth
