@@ -40,7 +40,8 @@ load-module module-always-sink
 # message-API PA
 # (/card/bluez_card.*/bluez) на этой сборке не зарегистрирован — проверено live.
 load-module module-bluetooth-policy
-# avrcp_absolute_volume=0: качелька телефона НЕ влияет на громкость колонки —
-# поток идёт full-scale, громкость BT = системный master (как у DLNA). Сам
+# Громкость BT = source-громкость × master. Телефон (Huawei) AVRCP absolute
+# volume НЕ шлёт и наши SetAbsoluteVolume игнорирует — его качелька масштабирует
+# звук до кодирования (in-band) и с колонки невидима; source держим на 100%.
 # bluetooth-discover (обёртка) в этой сборке не грузится — берём bluez5-discover.
-load-module module-bluez5-discover avrcp_absolute_volume=0
+load-module module-bluez5-discover
