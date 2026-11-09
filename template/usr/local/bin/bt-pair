@@ -3,10 +3,16 @@
 # Bluetooth pairing window. Outside it the speaker does not show up in phone
 # scans and turns down new pairings; phones paired before connect anyway.
 # It closes on its own after DiscoverableTimeout and PairableTimeout from
-# /etc/bluetooth/main.conf.
+# /etc/bluetooth/main.conf (180 s each).
 #
 #   bt-pair        open
-#   bt-pair off    close now
+#   bt-pair off    close now (and trust everything paired)
+#
+# Auto-trust: bluez keeps Trusted=no after pairing and has no config for it
+# (main.conf [Policy] covers adapters only; bluez-tools bt-agent has no flag
+# either). An untrusted device is paired but gets no audio service — the
+# transport never opens, PA sees nothing. So on window close we trust every
+# paired device: idempotent for the ones already trusted.
 #
 # Кодек (AAC/SBC) выбирает телефон сам: звук ведёт PulseAudio через bluez
 # (bluez-alsa выведена из рунлевела), а message-handler PA для смены кодека
@@ -17,13 +23,29 @@ bt() {
 	timeout 5 bluetoothctl "$@" >/dev/null
 }
 
+trust_all() {
+	timeout 5 bluetoothctl devices Paired |
+		while read -r _ mac; do bt trust "$mac"; done
+}
+
+close_all() {
+	bt discoverable off
+	bt pairable off
+	trust_all
+}
+
 case "${1:-}" in
 "")
 	bt pairable on && bt discoverable on
+	# окно закроется и само (PairableTimeout 180), но trust после окна
+	# нужен всегда — фон-джоба в стиле bt-agent start_post; 190 > 180
+	(
+		sleep 190
+		close_all
+	) >/dev/null 2>&1 &
 	;;
 off)
-	bt discoverable off
-	bt pairable off
+	close_all
 	;;
 *)
 	echo "usage: bt-pair [off]" >&2
