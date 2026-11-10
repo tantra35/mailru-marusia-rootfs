@@ -1,47 +1,33 @@
-# Микрофон колонки по TCP для LVA
-# Сохранение/восстановление громкости и мьюта sink/source между перезапусками.
-# СТРОГО ПЕРВЫМ — до alsa-sink: восстановление цепляется на SINK_FIXATE при
-# СОЗДАНИИ sink'а (PA 17.0 module-device-restore.c:1251-1253), а set на
-# @DEFAULT_SINK@ (= echo_cancel_sink, SHARE_VOLUME_WITH_MASTER) перенаправляется
-# на мастер и сохраняется под ключом «sink:alsa_output.hw_0_0» — значит хук
-# обязан висеть уже к моменту создания master'а. Файл состояния —
-# $PULSE_STATE_PATH/device-volumes; запись отложенная, не чаще раза в 10 с:
-# таймер заводится от ПЕРВОГО изменения и последующими не переносится
-# (trigger_save: «if (u->save_time_event) return»), sync каждые ≤10 с
-# пишет актуальное состояние (:65, :127-130, :156-160).
+# Роли громкости — как в стоке: виртуальные sink'и поверх физического, физический
+# держится на 100%. master (default sink) = музыка/кнопки/LVA/DLNA; tts = LVA по сети
+# (paplay -D tts на его стороне); alarm = будильники/таймеры (paplay -D alarm).
+# Роли — СОСЕДИ master'а (каждый форвардится в физический напрямую): громкость роли
+# НЕ масштабируется громкостью master'а.
+# use_volume_sharing=false ОБЯЗАТЕЛЕН: дефолт true делит громкость с master-синком
+# (mvs.c:485) — роль перестанет регулироваться независимо.
+# device-restore СТРОГО ПЕРВЫМ: восстанавливает громкости при СОЗДАНИИ sink'а.
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
 load-module module-alsa-source device=micboost
-# AEC/NS (webrtc) ОТКЛЮЧЁН 09.11.2026 (решение юзера): давит полезный сигнал —
-# шумовая полка -61.7 dB против -48.6 dB у сырого входа (ffmpeg volumedetect,
-# один и тот же шум комнаты, оба источника). Для возврата раскомментировать
-# load-module ниже и вернуть оба set-default на echo_cancel_*.
-# Вычитает из микрофона собственный playback (музыка/TTS/звуки) — нужен ТОЛЬКО
-# если снова понадобится ассистент с музыкой на фоне.
-# Всё воспроизведение при AEC идёт через echo_cancel_sink (опорный сигнал),
-# микрофон — echo_cancel_source.
-# use_volume_sharing=false: без этого виртуальный sink имеет
-# PA_SINK_SHARE_VOLUME_WITH_MASTER → его sink-input'ы volume_writable=false
-# (sink-input.c:376-377) и flat-volumes не может протолкнуть setvol mpd в sink.
-# С false модуль сам синхронизирует громкости с мастером (mec.c:614-624).
-#load-module module-echo-cancel aec_method=webrtc use_master_format=1 use_volume_sharing=false source_master=alsa_input.hw_0_1 sink_master=alsa_output.hw_0_0 source_name=echo_cancel_source sink_name=echo_cancel_sink
+
+load-module module-virtual-sink sink_name=master master=alsa_output.hw_0_0 use_volume_sharing=false
+load-module module-virtual-sink sink_name=tts master=alsa_output.hw_0_0 use_volume_sharing=false
+load-module module-virtual-sink sink_name=alarm master=alsa_output.hw_0_0 use_volume_sharing=false
+
 set-default-source alsa_input.micboost
-set-default-sink alsa_output.hw_0_0
+set-default-sink master
+
+# Локальные клиенты — unix-сокет; TCP только для LVA.
 load-module module-native-protocol-unix
-load-module module-native-protocol-tcp auth-ip-acl="127.0.0.1;192.168.88.0/24;192.168.14.0/24" auth-anonymous=1
+load-module module-native-protocol-tcp auth-ip-acl="192.168.88.0/24" auth-anonymous=1
+
 load-module module-always-sink
-# Bluetooth: телефон ведёт сам PulseAudio через bluez Media API (PA 17,
-# module-bluez5-device) — bluez-alsa выведена из рунлевела: её aplay слинкован
-# только с libasound и выводит в ALSA-default (=hw:0,0), который занят PA.
-# Поток телефона появляется у PA как bluez_source.<MAC>.a2dp_source,
-# module-bluetooth-policy (дефолт a2dp_source=true) заворачивает его loopback'ом
-# в default-sink. Громкость BT-потока = системный master sink (avrcp_absolute_
-# volume=0 ниже отключает качельку телефона). Смена кодека (AAC/SBC) телефоном,
-# message-API PA
-# (/card/bluez_card.*/bluez) на этой сборке не зарегистрирован — проверено live.
+
+# Bluetooth: телефон ведёт сам PA — поток bluez_source.<MAC>.a2dp_source, policy
+# заворачивает его в default-sink; качелька телефона масштабирует звук до кодирования.
 load-module module-bluetooth-policy
-# Громкость BT = source-громкость × master. Телефон (Huawei) AVRCP absolute
-# volume НЕ шлёт и наши SetAbsoluteVolume игнорирует — его качелька масштабирует
-# звук до кодирования (in-band) и с колонки невидима; source держим на 100%.
-# bluetooth-discover (обёртка) в этой сборке не грузится — берём bluez5-discover.
 load-module module-bluez5-discover
+
+# AEC/NS (webrtc) ОТКЛЮЧЁН: давит полезный сигнал. Для возврата раскомментировать
+# строку ниже и вернуть оба set-default на echo_cancel_*.
+#load-module module-echo-cancel aec_method=webrtc use_master_format=1 use_volume_sharing=false source_master=alsa_input.micboost sink_master=alsa_output.hw_0_0 source_name=echo_cancel_source sink_name=echo_cancel_sink
