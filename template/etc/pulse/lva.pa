@@ -20,8 +20,10 @@ load-module module-alsa-source device=micboost
 # роли ниже прицеплены к micboost_echo_cancel_sink, а не к hw_0_0 — новый sink тоже заводить
 # только сюда, сыгравший мимо в микрофоне НЕ вычитается.
 load-module module-echo-cancel aec_method=webrtc rate=48000 use_master_format=1 use_volume_sharing=false sink_master=alsa_output.hw_0_0 source_master=alsa_input.micboost sink_name=micboost_echo_cancel_sink source_name=micboost_echo_cancel aec_args="analog_gain_control=0 digital_gain_control=0 noise_suppression=0 transient_noise_suppression=0"
-# Запасной вариант speex — «как в стоке» (там он был ALSA-плагином
-# libasound_module_pcm_speex_aec); здесь тот же алгоритм на уровне PA:
+# Запасной вариант speex — в нашей схеме НЕ РАБОЧИЙ: speex-препроцессор PA
+# монорный (speex.c: «AGC, denoising, dereverb and echo suppression only work
+# with channels=1»), тракт стерео → «Module initialization failed» и каскадный
+# отказ всех ролей. Оставлено только как памятка; шумодав — через webrtc NS:
 #load-module module-echo-cancel aec_method=speex rate=48000 use_master_format=1 use_volume_sharing=false sink_master=alsa_output.hw_0_0 source_master=alsa_input.micboost sink_name=micboost_echo_cancel_sink source_name=micboost_echo_cancel aec_args="agc=0 denoise=0 dereverb=0"
 
 load-module module-virtual-sink sink_name=master master=micboost_echo_cancel_sink use_volume_sharing=false
