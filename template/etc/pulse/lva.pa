@@ -1,20 +1,34 @@
-# Роли громкости — как в стоке: виртуальные sink'и поверх физического, физический
-# держится на 100%. master (default sink) = музыка/кнопки/LVA/DLNA; tts = LVA по сети
-# (paplay -D tts на его стороне); alarm = будильники/таймеры (paplay -D alarm).
-# Роли — СОСЕДИ master'а (каждый форвардится в физический напрямую): громкость роли
-# НЕ масштабируется громкостью master'а.
-# use_volume_sharing=false ОБЯЗАТЕЛЕН: дефолт true делит громкость с master-синком
-# (mvs.c:485) — роль перестанет регулироваться независимо.
+# Звук — двухступенчатая схема: физический sink (всегда 100%) → AEC → роли.
+# Роли (громкость регулируемая):
+#   master — default sink: музыка (mpd/DLNA), кнопки, LVA, bluetooth
+#   tts    — TTS LVA (paplay -D tts на его стороне)
+#   alarm  — будильники/таймеры (paplay -D alarm)
+# Роли — СОСЕДИ: громкость одной роли не влияет на другие.
+# use_volume_sharing=false ОБЯЗАТЕЛЕН: дефолт true делит громкость с мастером —
+# роль перестанет регулироваться независимо.
 # device-restore СТРОГО ПЕРВЫМ: восстанавливает громкости при СОЗДАНИИ sink'а.
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
 load-module module-alsa-source device=micboost
 
-load-module module-virtual-sink sink_name=master master=alsa_output.hw_0_0 use_volume_sharing=false
-load-module module-virtual-sink sink_name=tts master=alsa_output.hw_0_0 use_volume_sharing=false
-load-module module-virtual-sink sink_name=alarm master=alsa_output.hw_0_0 use_volume_sharing=false
+# AEC — вычитает эхо собственного динамика из микрофона: без него wake word не
+# слышит голос под музыкой. Обработка сигнала (авто-громкость/шумодав) ВЫКЛЮЧЕНА —
+# только чистое вычитание. Метод webrtc — сильнейший на нашей колонке (тон
+# ~26-38 дБ против ~10 у speex); имена aec_args — из этой сборки PA 17.0
+# (libwebrtc-util.so), у speex-метода они другие (agc/denoise).
+# ОПОРА = micboost_echo_cancel_sink: вычитается только то, что играет в НЕГО. Поэтому ВСЕ
+# роли ниже прицеплены к micboost_echo_cancel_sink, а не к hw_0_0 — новый sink тоже заводить
+# только сюда, сыгравший мимо в микрофоне НЕ вычитается.
+load-module module-echo-cancel aec_method=webrtc rate=48000 use_master_format=1 use_volume_sharing=false sink_master=alsa_output.hw_0_0 source_master=alsa_input.micboost sink_name=micboost_echo_cancel_sink source_name=micboost_echo_cancel aec_args="analog_gain_control=0 digital_gain_control=0 noise_suppression=0 transient_noise_suppression=0"
+# Запасной вариант speex — «как в стоке» (там он был ALSA-плагином
+# libasound_module_pcm_speex_aec); здесь тот же алгоритм на уровне PA:
+#load-module module-echo-cancel aec_method=speex rate=48000 use_master_format=1 use_volume_sharing=false sink_master=alsa_output.hw_0_0 source_master=alsa_input.micboost sink_name=micboost_echo_cancel_sink source_name=micboost_echo_cancel aec_args="agc=0 denoise=0 dereverb=0"
 
-set-default-source alsa_input.micboost
+load-module module-virtual-sink sink_name=master master=micboost_echo_cancel_sink use_volume_sharing=false
+load-module module-virtual-sink sink_name=tts master=micboost_echo_cancel_sink use_volume_sharing=false
+load-module module-virtual-sink sink_name=alarm master=micboost_echo_cancel_sink use_volume_sharing=false
+
+set-default-source micboost_echo_cancel
 set-default-sink master
 
 # Локальные клиенты — unix-сокет; TCP только для LVA.
@@ -27,7 +41,3 @@ load-module module-always-sink
 # заворачивает его в default-sink; качелька телефона масштабирует звук до кодирования.
 load-module module-bluetooth-policy
 load-module module-bluez5-discover
-
-# AEC/NS (webrtc) ОТКЛЮЧЁН: давит полезный сигнал. Для возврата раскомментировать
-# строку ниже и вернуть оба set-default на echo_cancel_*.
-#load-module module-echo-cancel aec_method=webrtc use_master_format=1 use_volume_sharing=false source_master=alsa_input.micboost sink_master=alsa_output.hw_0_0 source_name=echo_cancel_source sink_name=echo_cancel_sink
