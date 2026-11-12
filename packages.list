@@ -28,7 +28,6 @@ dnsmasq
 doas
 dosfstools
 e2fsprogs
-espeak-ng
 ethtool
 evtest
 file

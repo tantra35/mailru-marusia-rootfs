@@ -233,7 +233,6 @@ cmd_clean() {
 	echo "кандидатов:   ${#rm_paths[@]}, суммарно $((sum / 1024)) МиБ"
 	echo "  (в .ubi экономия примерно вдвое меньше — образ жмётся mkfs.ubifs)"
 	echo "оставлено сознательно:"
-	echo "  usr/share/espeak-ng-data (~20 МиБ) — нужен offline-speak"
 	echo "  usr/share/misc/magic.mgc (~11 МиБ) — нужен file"
 	echo "  terminfo — нужен serial-консоли"
 	echo
