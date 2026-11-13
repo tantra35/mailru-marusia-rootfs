@@ -14,7 +14,7 @@ set -euo pipefail
 
 B="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TREE="${TREE:-$B/../rootfs}"                    # aarch64-дерево: busybox, musl
-KSRC="${KSRC:-$B/../kernel-src}"                # исходники ядра автора
+KSRC="${KSRC:-$B/../../kernel-src}"             # исходники ядра автора
 TEXTOFF=0x1080000                               # как в fw_alpine/Image автора
 STAGE="$B/initramfs-scan"
 
