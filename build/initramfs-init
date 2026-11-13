@@ -17,10 +17,20 @@ mount -t devtmpfs devtmpfs /dev || mdev -s
 # /sys/kernel/config в sysfs не существует и mkdir там не пройдёт
 mount -t configfs none /config 2>/dev/null
 
+# маячок глазами: фазы на панель-часах (seg-led, без USB)
+panel() {
+	for d in /sys/bus/platform/devices/*/linedisp.* /sys/class/linedisp/*; do
+		[ -e "$d/message" ] && { echo "$1" > "$d/message" 2>/dev/null; return 0; }
+	done
+	return 1
+}
+panel "1111"   # /init стартовал, devtmpfs жив
+
 # --- USB ACM gadget ---
 G=/config/usb_gadget/scan
 gadget=''
 if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
+	panel "2222"   # configfs смонтирован, дерево gadget создано
 	echo 0x1d6b > "$G/idVendor"    # Linux Foundation
 	echo 0x0104 > "$G/idProduct"
 	mkdir -p "$G/strings/0x409"
@@ -39,7 +49,10 @@ if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 	echo 0xa113 > "$G/idProduct"
 	if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
 		gadget=yes
+		panel "3333"   # UDC привязан, гаджет сконфигурирован
 		sleep 1   # дать хосту увидеть ttyACM0
+	else
+		panel "9999"   # UDC не найден или биндинг упал
 	fi
 fi
 
