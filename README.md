@@ -38,7 +38,7 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 | `build/apkbuild/` | APKBUILD'ы (mpd, pulseaudio, gl-stub, pipewire-архив) |
 | `build/sbin/apk.static` | apk-tools-static (x86_64) |
 | `build/repositories.txt` | Alpine 3.24 + наш custom-repo |
-| `build/bad-pebs-shtab.txt` | **Плохие PEB штабовой колонки** — обход при прошивке. Для другой платы свой файл через `BAD_PEB_FILE` |
+| `bad-pebs-shtab.txt` (рядом с репо, в git **не входит**) | **Плохие PEB штабовой колонки** — обход при прошивке. Для другой платы свой файл через `BAD_PEB_FILE` |
 | `build/scan-bad-pebs` | Сканер плохих PEB: на живой плате из `/tmp` (ramfs) или внутри initramfs (`/scan`) |
 | `build/initramfs-init` + `build/make-scan-initramfs.sh` | Сборка `scan-initramfs.cpio.gz` (busybox+musl+сканер) для пункта 5 flasher.sh — скан с пустой платы через UART |
 | `flasher.sh` | Прошивальщик: USB-burn (окно 450 мс), бэкап, raw-запись сегментами |
@@ -99,7 +99,7 @@ sudo ./build/rebuild.sh
 ./flash-custom-root.sh
 ```
 
-`flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `build/bad-pebs-shtab.txt` рядом с образом).
+`flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt` уровнем выше репо).
 
 **Как снять список плохих PEB с конкретной платы** — `build/scan-bad-pebs`, две роли:
 
@@ -107,7 +107,7 @@ sudo ./build/rebuild.sh
 ```bash
 scp build/scan-bad-pebs root@<IP>:/tmp/
 ssh root@<IP> 'sh /tmp/scan-bad-pebs > /tmp/bad-pebs-<имя>.txt'
-scp root@<IP>:/tmp/bad-pebs-<имя>.txt build/
+scp root@<IP>:/tmp/bad-pebs-<имя>.txt .   # рядом с репо; файлы в git не входят
 ```
 2. **Плата пустая/руфс сломан** — RAM-сканер flasher.sh (пункт 5 «Скан плохих PEB», образ `build/scan-initramfs.cpio.gz` собирается `build/make-scan-initramfs.sh`): ядро+initramfs целиком в ОЗУ, NAND только читается, список печатается в UART между маркерами `# === 8< ===` — скопируйте из PuTTY в файл.
 
@@ -115,10 +115,10 @@ scp root@<IP>:/tmp/bad-pebs-<имя>.txt build/
 
 Дальше файл через переменную окружения — и пересборка, и прошивка используют один и тот же список:
 ```bash
-BAD_PEB_FILE=build/bad-pebs-<имя>.txt build/rebuild.sh
-BAD_PEB_FILE=build/bad-pebs-<имя>.txt ./flasher.sh
+BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt build/rebuild.sh
+BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt ./flasher.sh
 ```
-Без переменной берётся `bad-pebs-shtab.txt` (штабовая колонка); пустой/отсутствующий файл = образ без дыр.
+По умолчанию оба берут `bad-pebs-shtab.txt` уровнем выше репо (штабовая колонка); эти файлы — частная история плат, в git не входят. Пустой/отсутствующий файл = образ без дыр.
 
 После первой загрузки:
 1. WiFi: `wifi-connect-iwd` (в этом образе PSK уже вшит — подключится сам)

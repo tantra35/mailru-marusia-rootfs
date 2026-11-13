@@ -1180,7 +1180,7 @@ item_flash() {
 		local usize badfile bads="" b seg rstart rend f total
 		usize=$(stat -Lc%s "$ROOTFS_UBI")
 		total=$(( (usize + ERASE_BLOCK - 1) / ERASE_BLOCK ))
-		badfile="${BAD_PEB_FILE:-${ROOTFS_UBI%/*}/bad-pebs-shtab.txt}"
+		badfile="${BAD_PEB_FILE:-$HERE/../bad-pebs-shtab.txt}"
 		if [ -f "$badfile" ]; then
 			while read -r b; do
 				case "$b" in ''|\#*) continue ;; esac
@@ -1425,7 +1425,8 @@ item_scan_pebs() {
   BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt build/rebuild.sh
   BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt ./flasher.sh
 
-Без BAD_PEB_FILE берётся bad-pebs-shtab.txt рядом с образом." 16 74
+По умолчанию оба берут bad-pebs-shtab.txt уровнем выше flasher.sh
+(частный файл, в git не входит)." 16 74
 }
 
 # Стоковая система одним заходом

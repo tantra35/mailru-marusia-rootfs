@@ -1,14 +1,15 @@
 #!/bin/bash
 # Пересборка образа: дерево → mkfs(-x zstd, БЕЗ патчей) → ubinize → обход плохих PEB.
-# Список плохих PEB: путь в $BAD_PEB_FILE (по умолчанию $B/build/bad-pebs-shtab.txt —
-# штабовая колонка). Файл снимается scan-bad-pebs'ом с конкретной платы:
+# Список плохих PEB: путь в $BAD_PEB_FILE (по умолчанию bad-pebs-shtab.txt
+# уровнем выше репо, ~/Загрузки/marusia/ - штабовая колонка). Файл частный,
+# в git не входит; снимается scan-bad-pebs'ом с конкретной платы:
 # по одному PEB на строку, # - комментарий. Нет файла/пустой - образ без дыр.
 # Контент каждого плохого PEB переносится в хвост образа (полный своп PEB целиком,
 # CRC не пересчитываются), на его месте остаётся свободная пустышка (EC без VID).
 # flasher.sh по тому же файлу (та же BAD_PEB_FILE) строит сегментную запись с разрывами.
 set -euo pipefail
 B=/home/ruslan/Загрузки/marusia/build-rootfs
-BADPEBS="${BAD_PEB_FILE:-$B/build/bad-pebs-shtab.txt}"
+BADPEBS="${BAD_PEB_FILE:-$(cd -- "$B/.." && pwd)/bad-pebs-shtab.txt}"
 
 rm -rf "$B/chroot/tmp/tree"
 cp -a "$B/rootfs" "$B/chroot/tmp/tree"
