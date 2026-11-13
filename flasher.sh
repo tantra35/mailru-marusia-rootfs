@@ -1432,7 +1432,8 @@ item_scan_pebs() {
 	local acm out catpid name dest list
 	acm=''
 	for _ in $(seq 1 30); do
-		acm=$(ls /dev/ttyACM* 2>/dev/null | head -n 1)
+		# pipefail+set -e: ls без совпадений роняет присваивание — глотать
+		acm=$(ls /dev/ttyACM* 2>/dev/null | head -n 1 || true)
 		[ -n "$acm" ] && break
 		sleep 1
 	done
