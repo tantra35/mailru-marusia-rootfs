@@ -30,6 +30,9 @@ STOCK="${STOCK:-$HERE/stock}"
 
 RECOVERY="${RECOVERY:-$HERE/Image-ramrootfs}"
 
+# Initramfs-сканер плохих PEB (собирается build/make-scan-initramfs.sh)
+SCINITRD="${SCINITRD:-$HERE/scan-initramfs.cpio.gz}"
+
 IDENTIFY_TIMEOUT="${IDENTIFY_TIMEOUT:-120}"
 IDENTIFY_POLL="${IDENTIFY_POLL:-0.1}"
 SETTLE="${SETTLE:-5}"
@@ -42,6 +45,8 @@ DTB_ADDR=0x01000000
 ENV_ADDR=0x02000000
 ENV_SIZE=0x10000
 I2C_BUF=0x02040000
+# Initramfs сканера: над I2C_BUF, вне зон Image (~16.7 МиБ от 0x01080000)
+INITRD_ADDR=0x03000000
 
 # Таблица загрузчика, не наша. Наши разделы лежат в её дырках, поэтому ядро и
 # dtb пишутся по сырым смещениям через nand write, а не по имени.
@@ -1165,16 +1170,17 @@ item_flash() {
 	dialog --infobox "Отправляю дерево устройств в память..." 5 44
 	write_to_flash "$DTB" "$DTB_ADDR" "$DTB_OFF" "$dread" "дерево устройств" || return
 
-	# Деградировавшие PEB внутри региона rootfs. Список - в bad-pebs.txt
-	# рядом с образом (по одному номеру на строку). Образ собран так, что
-	# контент этих блоков перенесён в хвост, поэтому тут мы просто НЕ пишем
+	# Деградировавшие PEB внутри региона rootfs. Список - в bad-pebs-файле,
+	# путь: BAD_PEB_FILE, по умолчанию bad-pebs-shtab.txt рядом с образом
+	# (штабовая колонка). Для другой платы: свой файл из scan-bad-pebs.
+	# Образ собран так, что контент этих блоков перенесён в хвост, поэтому тут
 	# эти блоки: идём сегментами между «дырками». U-Boot ни разу не получает
 	# возможность самому перескакивать блоки (его skip сдвигает весь поток).
 	if [ "$with_ubi" = 1 ]; then
 		local usize badfile bads="" b seg rstart rend f total
 		usize=$(stat -Lc%s "$ROOTFS_UBI")
 		total=$(( (usize + ERASE_BLOCK - 1) / ERASE_BLOCK ))
-		badfile="${ROOTFS_UBI%/*}/bad-pebs.txt"
+		badfile="${BAD_PEB_FILE:-${ROOTFS_UBI%/*}/bad-pebs-shtab.txt}"
 		if [ -f "$badfile" ]; then
 			while read -r b; do
 				case "$b" in ''|\#*) continue ;; esac
@@ -1370,6 +1376,56 @@ item_recovery() {
 
 	dialog --title "Аварийная система работает" --msgbox "\
 Плата работает под Linux в RAM. NAND не используется" 20 74
+}
+
+# Скан плохих PEB: ядро + initramfs целиком в RAM, NAND только читается.
+# Нужен, когда на плате ещё нет/сломан rootfs и по ssh скан не запустить.
+# Результат — в UART (PuTTY), список между маркерами «# === 8< ===».
+item_scan_pebs() {
+	local isize
+
+	require_files "Что нужно для скана плохих PEB" "$IMAGE" "$DTB" "$SCINITRD" || return
+
+	image_is_adapted "$IMAGE" || {
+		dialog --msgbox "\
+У $IMAGE нулевой text_offset." 11 74
+		return
+	}
+
+	ensure_online || return
+
+	if [ "$dry_run" = 1 ]; then
+		dialog --msgbox "сухой прогон: загрузил бы сканер в ОЗУ" 7 50
+		return
+	fi
+
+	mwrite_to_ram "$IMAGE" "$KERNEL_ADDR" ядро || return
+	mwrite_to_ram "$DTB" "$DTB_ADDR" "дерево устройств" || return
+	isize=$(stat -Lc%s "$SCINITRD")
+	mwrite_to_ram "$SCINITRD" "$INITRD_ADDR" initramfs || return
+
+	# Аналогично item_recovery: bootargs только на эту сессию, без saveenv.
+	set_long_var bootargs \
+		"rootfstype=ramfs earlycon=meson,0xff803000 console=ttyGS0,115200 console=ttyAML0,115200n8 rdinit=/init loglevel=7" ||
+		{ dialog --msgbox "Не удалось задать командную строку." 7 45; return; }
+
+	# booti берёт размер initrd в HEX после двоеточия.
+	dialog --infobox "Передаю управление ядру..." 5 40
+	aml_raw bulkcmd "booti $KERNEL_ADDR 0x$(printf %x "$INITRD_ADDR"):0x$(printf %x "$isize") $DTB_ADDR" >/dev/null 2>&1 || true
+
+	ONLINE=0
+
+	dialog --title "Скан плохих PEB запущен" --msgbox "\
+Плата работает под Linux в RAM, NAND только читается.
+
+Смотри serial (PuTTY): прогресс и найденные PEB идут в консоль.
+Скопируй список между строками \"# === 8< ===\" в файл и при
+сборке/прошивке укажи его через переменную окружения:
+
+  BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt build/rebuild.sh
+  BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt ./flasher.sh
+
+Без BAD_PEB_FILE берётся bad-pebs-shtab.txt рядом с образом." 16 74
 }
 
 # Стоковая система одним заходом
@@ -1698,16 +1754,17 @@ done
 while :; do
 	choice=$(dialog --title "Прошивальщик VK Mini A113X$([ "$dry_run" = 1 ] && echo ' , СУХОЙ ПРОГОН')" \
 		--no-collapse --cancel-label Выход \
-		--menu "$(header)" 21 74 9 \
+		--menu "$(header)" 22 74 10 \
 		0 "Снять бэкап платы           все разделы" \
 		1 "Опросить шину i2c           что распаяно на плате" \
 		2 "Показать envs               что на плате прямо сейчас" \
 		3 "Прошить alpine c k6.18      ядро, dtb, рутфс, envs" \
 		4 "Грузить k6.18 с ram rootfs  для рекавери работ" \
-		5 "Прошить бекап               стока или альпайна" \
-		6 "Открыть U-Boot шел          на serial" \
-		7 "Перезагрузить плату         и выйти" \
-		8 "Выход                       просто выйти" \
+		5 "Скан плохих PEB            сканер в RAM, вывод в UART" \
+		6 "Прошить бекап               стока или альпайна" \
+		7 "Открыть U-Boot шел          на serial" \
+		8 "Перезагрузить плату         и выйти" \
+		9 "Выход                       просто выйти" \
 		3>&1 1>&2 2>&3) || break
 
 	case "$choice" in
@@ -1716,10 +1773,11 @@ while :; do
 	2) item_show_env ;;
 	3) item_flash ;;
 	4) item_recovery ;;
-	5) item_restore_stock ;;
-	6) item_uboot_shell ;;
-	7) item_reboot ;;
-	8) break ;;
+	5) item_scan_pebs ;;
+	6) item_restore_stock ;;
+	7) item_uboot_shell ;;
+	8) item_reboot ;;
+	9) break ;;
 	esac
 
 	[ "$LEAVE" = 1 ] && break

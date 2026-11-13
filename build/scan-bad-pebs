@@ -1,0 +1,70 @@
+#!/bin/sh
+# Сканер плохих PEB раздела ubi. Работает в двух ролях:
+#   1) на живой колонке: скопировать в /tmp (ramfs) и запустить оттуда;
+#   2) в initramfs-сканере (build/make-scan-initramfs.sh, пункт 9 flasher.sh) —
+#      туда он попадает как /scan, маркеры вокруг списка рисует /init.
+#
+# Во flash ничего не пишет: только чтение /dev/mtd*.
+#
+# stdout — готовый bad-pebs-файл: номера PEB от начала раздела ubi, по одному
+# на строку, строки с # игнорируются. Прогресс и причины — stderr, каждая
+# строка начинается с #, поэтому консольный вывод можно копировать целиком.
+#
+# Ловит:
+#   - заводские bad-блоки (nanddump пишет «Skipping bad block»);
+#   - PEB с неисправимой ошибкой ECC при чтении (тот же класс, что
+#     «error -74» в dmesg после ubiattach).
+# Исправимые битфлипы не видит (за ними следит ubihealthd на живом UBI).
+#
+# Итоговый файл кладётся в BAD_PEB_FILE:
+#   BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt build/rebuild.sh
+#   BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt ./flasher.sh
+
+set -eu
+
+PEBSZ=131072   # erasesize, 128K
+dev=''
+
+while read -r mtd size name _; do
+	name=${name#\"}; name=${name%\"}
+	if [ "$name" = ubi ]; then
+		dev="/dev/${mtd%%:*}"
+		total=$(( 0x$size / PEBSZ ))
+	fi
+done < /proc/mtd
+
+[ -n "$dev" ] || {
+	echo '# scan-bad-pebs: раздел "ubi" не найден в /proc/mtd:' >&2
+	sed 's/^/# /' /proc/mtd >&2
+	exit 1
+}
+
+echo "# Плохие PEB раздела ubi ($dev), scan-bad-pebs, $(date '+%F %T')"
+echo "# Формат bad-pebs: номер PEB от начала раздела, LEB = PEB-2."
+
+peb=0
+while [ "$peb" -lt "$total" ]; do
+	off=$((peb * PEBSZ))
+	rc=0
+	err=$(nanddump -f /dev/null -s "$off" -l "$PEBSZ" "$dev" 2>&1) || rc=$?
+	case "$err" in
+	# Внимание: на заводском bad-блоке nanddump выходит с rc=0 и просто
+	# печатает Skipping — решаем по тексту, а не по коду возврата.
+	*Skipping*)
+		echo "$peb"
+		echo "# PEB $peb: заводской bad-блок" >&2
+		;;
+	'') ;;
+	*)
+		if [ "$rc" -ne 0 ]; then
+			echo "$peb"
+			printf '# PEB %s: ошибка чтения: %s\n' "$peb" \
+				"$(printf '%s' "$err" | head -n 1)" >&2
+		fi
+		;;
+	esac
+	peb=$((peb + 1))
+	[ $((peb % 128)) -eq 0 ] && echo "# просканировано $peb/$total" >&2
+done
+
+echo "# скан завершён: $total PEB" >&2

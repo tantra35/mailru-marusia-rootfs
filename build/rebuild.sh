@@ -1,12 +1,14 @@
 #!/bin/bash
 # Пересборка образа: дерево → mkfs(-x zstd, БЕЗ патчей) → ubinize → обход плохих PEB.
-# Список плохих PEB: $B/build/bad-pebs.txt (по одному на строку, # - комментарий).
+# Список плохих PEB: путь в $BAD_PEB_FILE (по умолчанию $B/build/bad-pebs-shtab.txt —
+# штабовая колонка). Файл снимается scan-bad-pebs'ом с конкретной платы:
+# по одному PEB на строку, # - комментарий. Нет файла/пустой - образ без дыр.
 # Контент каждого плохого PEB переносится в хвост образа (полный своп PEB целиком,
 # CRC не пересчитываются), на его месте остаётся свободная пустышка (EC без VID).
-# flasher.sh по тому же файлу строит сегментную запись с разрывами на этих PEB.
+# flasher.sh по тому же файлу (та же BAD_PEB_FILE) строит сегментную запись с разрывами.
 set -euo pipefail
 B=/home/ruslan/Загрузки/marusia/build-rootfs
-BADPEBS="$B/build/bad-pebs.txt"
+BADPEBS="${BAD_PEB_FILE:-$B/build/bad-pebs-shtab.txt}"
 
 rm -rf "$B/chroot/tmp/tree"
 cp -a "$B/rootfs" "$B/chroot/tmp/tree"
@@ -29,7 +31,8 @@ echo "=== ubinize ==="
 chroot "$B/chroot" ubinize -o /tmp/rootfs-new.ubi -m 2048 -p 131072 /tmp/ubinize.ini 2>&1 | tail -1
 cp "$B/chroot/tmp/rootfs-new.ubi" "$B/build/rootfs-custom.ubi"
 
-echo "=== обход плохих PEB ==="
+echo "=== обход плохих PEB ($BADPEBS) ==="
+if [ -s "$BADPEBS" ]; then
 python3 - "$B/build/rootfs-custom.ubi" "$BADPEBS" <<'PYEOF'
 import sys, struct, zlib
 PEB = 131072
@@ -69,6 +72,9 @@ open(p, 'wb').write(bytes(d))
 tail_pebs = list(range(tail // PEB, tail // PEB + len(bad)))
 print(f'плохие PEB {bad} -> хвост {tail_pebs}; образ {len(d)//PEB} PEB')
 PYEOF
+else
+echo "список пуст или отсутствует - собираю образ без дыр"
+fi
 
 chown ruslan:ruslan "$B/build/rootfs-custom.ubi"
 echo "=== ГОТОВО: $B/build/rootfs-custom.ubi ==="

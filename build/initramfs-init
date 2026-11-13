@@ -1,0 +1,29 @@
+#!/bin/sh
+# /init аварийного сканера плохих PEB (initramfs целиком в RAM).
+# NAND не монтируется и не пишется: скан — только чтение /dev/mtd*.
+# console= задаёт flasher.sh (rdinit=/init).
+
+PATH=/bin
+umask 022
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev || mdev -s
+
+echo
+echo "### scan-bad-pebs initrd: система в RAM, NAND только читается"
+echo "### весь вывод между маркерами можно копировать как bad-pebs-файл:"
+
+echo "# === 8< === COPY bad-pebs 8< ==="
+sh /scan
+echo "# === 8< === END bad-pebs 8< ==="
+
+echo
+echo "# MTD/ECC-строки ядра за скан, для сведений:"
+dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /'
+
+echo
+echo "### готово. Shell на консоли; выключить плату: poweroff -f"
+# Мы PID 1: shell вместо exec, чтобы после exit платы не паниковала зря.
+sh
+poweroff -f

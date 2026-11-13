@@ -14,3 +14,7 @@ template/etc/ssh/ssh_host_ed25519_key
 template/etc/ssh/ssh_host_rsa_key
 rootfs-apk/
 rootfs-min/
+# артефакты сканера плохих PEB
+build/scan-initramfs.cpio.gz
+build/initramfs-scan/
+build/rootfs.ubifs
