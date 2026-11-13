@@ -21,3 +21,6 @@ build/rootfs.ubifs
 # per-плата списки плохих PEB — частная история, живут рядом с flasher.sh
 bad-pebs*.txt
 build/bad-pebs*.txt
+# RAM-ядро со вшитым сканером (собирается make-ramrootfs-kernel.sh)
+Image-ramrootfs
+build/initramfs.cpio

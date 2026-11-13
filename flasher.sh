@@ -37,9 +37,6 @@ STOCK="${STOCK:-$(_first stock -d)}"
 
 RECOVERY="${RECOVERY:-$(_first Image-ramrootfs -f)}"
 
-# Initramfs-сканер плохих PEB (собирается build/make-scan-initramfs.sh)
-SCINITRD="${SCINITRD:-$HERE/build/scan-initramfs.cpio.gz}"
-
 IDENTIFY_TIMEOUT="${IDENTIFY_TIMEOUT:-120}"
 IDENTIFY_POLL="${IDENTIFY_POLL:-0.1}"
 SETTLE="${SETTLE:-5}"
@@ -52,8 +49,6 @@ DTB_ADDR=0x01000000
 ENV_ADDR=0x02000000
 ENV_SIZE=0x10000
 I2C_BUF=0x02040000
-# Initramfs сканера: над I2C_BUF, вне зон Image (~16.7 МиБ от 0x01080000)
-INITRD_ADDR=0x03000000
 
 # Таблица загрузчика, не наша. Наши разделы лежат в её дырках, поэтому ядро и
 # dtb пишутся по сырым смещениям через nand write, а не по имени.
@@ -1393,13 +1388,13 @@ item_recovery() {
 # Вывод через USB-C (ACM-gadget, /dev/ttyACM0), UART - запасной канал.
 # Список сохраняется в bad-pebs-<имя>.txt рядом с flasher.sh.
 item_scan_pebs() {
-	local isize
+	require_files "Что нужно для скана плохих PEB" "$RECOVERY" "$DTB" || return
 
-	require_files "Что нужно для скана плохих PEB" "$IMAGE" "$DTB" "$SCINITRD" || return
-
-	image_is_adapted "$IMAGE" || {
+	# Тот же заголовок, что и у прошиваемого ядра: booti кладёт образ по
+	# SDRAM_BASE + text_offset, а SDRAM_BASE здесь ноль.
+	image_is_adapted "$RECOVERY" || {
 		dialog --msgbox "\
-У $IMAGE нулевой text_offset." 11 74
+У $RECOVERY нулевой text_offset." 11 74
 		return
 	}
 
@@ -1410,19 +1405,20 @@ item_scan_pebs() {
 		return
 	fi
 
-	mwrite_to_ram "$IMAGE" "$KERNEL_ADDR" ядро || return
+	# Вендорский booti НЕ принимает отдельный initrd (слепой перебор
+	# 2026-11-14), поэтому initramfs вшит в Image-ramrootfs
+	# (build/make-ramrootfs-kernel.sh).
+	mwrite_to_ram "$RECOVERY" "$KERNEL_ADDR" ядро || return
 	mwrite_to_ram "$DTB" "$DTB_ADDR" "дерево устройств" || return
-	isize=$(stat -Lc%s "$SCINITRD")
-	mwrite_to_ram "$SCINITRD" "$INITRD_ADDR" initramfs || return
 
-	# Аналогично item_recovery: bootargs только на эту сессию, без saveenv.
+	# booti вызывает image_setup_libfdt, а тот переписывает /chosen/bootargs
+	# из окружения. Только на эту сессию, без saveenv.
 	set_long_var bootargs \
 		"rootfstype=ramfs earlycon=meson,0xff803000 console=ttyGS0,115200 console=ttyAML0,115200n8 rdinit=/init loglevel=7" ||
 		{ dialog --msgbox "Не удалось задать командную строку." 7 45; return; }
 
-	# booti берёт размер initrd в HEX после двоеточия.
 	dialog --infobox "Передаю управление ядру..." 5 40
-	aml_raw bulkcmd "booti $KERNEL_ADDR 0x$(printf %x "$INITRD_ADDR"):0x$(printf %x "$isize") $DTB_ADDR" >/dev/null 2>&1 || true
+	aml_raw bulkcmd "booti $KERNEL_ADDR - $DTB_ADDR" >/dev/null 2>&1 || true
 
 	ONLINE=0
 
