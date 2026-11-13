@@ -26,6 +26,8 @@ if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 	mkdir -p "$G/strings/0x409"
 	echo "marusia-scan" > "$G/strings/0x409/product"
 	ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
+	# маячок-отладка: PID 0x0001 = дошли до привязки UDC
+	echo 0x0001 > "$G/idProduct"
 	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
 	if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
 		gadget=yes
@@ -44,6 +46,11 @@ echo "### scan-bad-pebs initrd: система в RAM, NAND только чит�
 	echo "### USB gadget не поднялся - вывод только в UART"
 
 if [ -n "$gadget" ]; then
+	# маячок-отладка: PID 0x0002 = скан стартует
+	echo "" > "$G/UDC" 2>/dev/null
+	echo 0x0002 > "$G/idProduct"
+	echo "$udc" > "$G/UDC" 2>/dev/null
+	sleep 1
 	echo "# === 8< === COPY bad-pebs 8< ===" > /dev/console
 	echo "# === 8< === COPY bad-pebs 8< ===" > /dev/ttyGS0
 	sh /scan 2>&1 | tee /dev/console /dev/ttyGS0 > /dev/null
