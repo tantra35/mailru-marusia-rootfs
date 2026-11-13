@@ -1383,7 +1383,8 @@ item_recovery() {
 
 # Скан плохих PEB: ядро + initramfs целиком в RAM, NAND только читается.
 # Нужен, когда на плате ещё нет/сломан rootfs и по ssh скан не запустить.
-# Результат — в UART (PuTTY), список между маркерами «# === 8< ===».
+# Вывод через USB-C (ACM-gadget, /dev/ttyACM0), UART - запасной канал.
+# Список сохраняется в bad-pebs-<имя>.txt рядом с flasher.sh.
 item_scan_pebs() {
 	local isize
 
@@ -1418,18 +1419,57 @@ item_scan_pebs() {
 
 	ONLINE=0
 
-	dialog --title "Скан плохих PEB запущен" --msgbox "\
-Плата работает под Linux в RAM, NAND только читается.
+	# Ядро в initramfs поднимает USB ACM-gadget: плата появляется на хосте
+	# как /dev/ttyACM0 (dwc2). UART остаётся запасным каналом.
+	dialog --infobox "Жду USB-serial с платы (до 30 с)..." 5 44
+	local acm out catpid name dest list
+	acm=''
+	for _ in $(seq 1 30); do
+		acm=$(ls /dev/ttyACM* 2>/dev/null | head -n 1)
+		[ -n "$acm" ] && break
+		sleep 1
+	done
 
-Смотри serial (PuTTY): прогресс и найденные PEB идут в консоль.
-Скопируй список между строками \"# === 8< ===\" в файл и при
-сборке/прошивке укажи его через переменную окружения:
+	if [ -z "$acm" ]; then
+		dialog --title "Скан запущен, канал - UART" --msgbox "\
+USB-serial с платы не появился - ACM-gadget не поднялся.
 
-  BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt build/rebuild.sh
-  BAD_PEB_FILE=/путь/bad-pebs-<имя>.txt ./flasher.sh
+Скан работает: вывод идёт в UART, смотри PuTTY.
+Список - между строками \"# === 8< ===\"." 11 70
+		return
+	fi
 
-По умолчанию оба берут bad-pebs-shtab.txt уровнем выше flasher.sh
-(частный файл, в git не входит)." 16 74
+	out="$BOARDDIR/bad-pebs-usb.log"
+	: > "$out"
+	cat "$acm" >> "$out" &
+	catpid=$!
+
+	dialog --tailbox "$out" 30 90   # скан идёт, лог растёт живьём
+
+	kill "$catpid" 2>/dev/null || true
+
+	list=$(awk '/8< === COPY/{f = 1; next} /8< === END/{f = 0} f' "$out")
+	if [ -z "$(printf '%s' "$list" | tr -d '[:space:]#')" ]; then
+		dialog --title "Скан завершён" --msgbox "\
+Плохих PEB не найдено (или список пуст).
+
+Полный лог: $out" 9 62
+		return
+	fi
+
+	name=$(dialog --inputbox "\
+Плохие PEB найдены. Имя платы - файл будет bad-pebs-<имя>.txt:" 9 64 "nova" \
+		3>&1 1>&2 2>&3) || return
+	[ -n "$name" ] || return
+	dest="$HERE/bad-pebs-$name.txt"
+	printf '%s\n' "$list" > "$dest"
+
+	dialog --title "Готово" --msgbox "\
+Список сохранён: $dest
+
+Сборка/прошивка этой платы:
+  BAD_PEB_FILE=$dest build/rebuild.sh
+  BAD_PEB_FILE=$dest ./flasher.sh" 11 74
 }
 
 # Стоковая система одним заходом

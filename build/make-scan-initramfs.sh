@@ -14,6 +14,7 @@ set -euo pipefail
 
 B="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TREE="${TREE:-$B/../rootfs}"   # aarch64-дерево, откуда берутся busybox и musl
+TREE="$(cd -- "$TREE" && pwd)" # физический путь: qemu -L не ресолвит ".."
 OUT="${1:-$B/scan-initramfs.cpio.gz}"
 STAGE="$B/initramfs-scan"
 
@@ -37,5 +38,7 @@ ln -s busybox "$STAGE/bin/sh"
 
 echo "=== ГОТОВО: $OUT ($(stat -c%s "$OUT") байт) ==="
 echo "Аплеты в busybox (nanddump должен быть):"
-qemu-aarch64 -L "$TREE" "$STAGE/bin/busybox" --list 2>/dev/null | grep -qx nanddump ||
+# Отдельно от pipefail: qemu выходит с ненулевым rc даже при успешном --list
+applets="$(qemu-aarch64 -L "$TREE" "$STAGE/bin/busybox" --list 2>/dev/null || true)"
+grep -qx nanddump <<< "$applets" ||
 	echo "  ВНИМАНИЕ: nanddump в этом busybox не найден, скан работать не будет!"

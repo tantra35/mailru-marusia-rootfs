@@ -2,6 +2,10 @@
 # /init аварийного сканера плохих PEB (initramfs целиком в RAM).
 # NAND не монтируется и не пишется: скан — только чтение /dev/mtd*.
 # console= задаёт flasher.sh (rdinit=/init).
+#
+# Вывод идёт на UART (console=) И в USB ACM-gadget: на хосте плата
+# появляется как /dev/ttyACM0 (dwc2 usb@ffe09080, CONFIG_USB_CONFIGFS_ACM=y).
+# Если gadget не поднялся — скан всё равно идёт в UART.
 
 PATH=/bin
 umask 022
@@ -9,21 +13,54 @@ umask 022
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev || mdev -s
+mount -t configfs none /sys/kernel/config 2>/dev/null
+
+# --- USB ACM gadget ---
+G=/sys/kernel/config/usb_gadget/scan
+gadget=''
+if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
+	echo 0x1d6b > "$G/idVendor"    # Linux Foundation
+	echo 0x0104 > "$G/idProduct"
+	mkdir -p "$G/strings/0x409"
+	echo "marusia-scan" > "$G/strings/0x409/product"
+	ln -s functions/acm.usb0 "$G/configs/c.1"
+	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+	if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
+		gadget=yes
+		sleep 1   # дать хосту увидеть ttyACM0
+	fi
+fi
+
+# Shell на USB-serial (если gadget жив): туда же шёл скан
+[ -n "$gadget" ] &&
+	setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' 2>/dev/null &
 
 echo
 echo "### scan-bad-pebs initrd: система в RAM, NAND только читается"
-echo "### весь вывод между маркерами можно копировать как bad-pebs-файл:"
+[ -n "$gadget" ] &&
+	echo "### вывод: UART и USB-C (/dev/ttyACM0 на хосте)" ||
+	echo "### USB gadget не поднялся - вывод только в UART"
 
-echo "# === 8< === COPY bad-pebs 8< ==="
-sh /scan
-echo "# === 8< === END bad-pebs 8< ==="
+if [ -n "$gadget" ]; then
+	echo "# === 8< === COPY bad-pebs 8< ===" > /dev/console
+	echo "# === 8< === COPY bad-pebs 8< ===" > /dev/ttyGS0
+	sh /scan 2>&1 | tee /dev/console /dev/ttyGS0 > /dev/null
+	echo "# === 8< === END bad-pebs 8< ===" > /dev/console
+	echo "# === 8< === END bad-pebs 8< ===" > /dev/ttyGS0
+else
+	echo "# === 8< === COPY bad-pebs 8< ==="
+	sh /scan
+	echo "# === 8< === END bad-pebs 8< ==="
+fi
 
 echo
 echo "# MTD/ECC-строки ядра за скан, для сведений:"
-dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /'
+dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /' > /dev/console
+[ -n "$gadget" ] &&
+	dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /' > /dev/ttyGS0
 
 echo
-echo "### готово. Shell на консоли; выключить плату: poweroff -f"
+echo "### готово. Shell: UART$( [ -n "$gadget" ] && echo ' и ttyGS0 (USB-C)'). Выключить: poweroff -f"
 # Мы PID 1: shell вместо exec, чтобы после exit платы не паниковала зря.
 sh
 poweroff -f

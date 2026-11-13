@@ -108,7 +108,7 @@ scp build/scan-bad-pebs root@<IP>:/tmp/
 ssh root@<IP> 'sh /tmp/scan-bad-pebs > /tmp/bad-pebs-<имя>.txt'
 scp root@<IP>:/tmp/bad-pebs-<имя>.txt .   # рядом с репо; файлы в git не входят
 ```
-2. **Плата пустая/руфс сломан** — RAM-сканер flasher.sh (пункт 5 «Скан плохих PEB», образ `build/scan-initramfs.cpio.gz` собирается `build/make-scan-initramfs.sh`): ядро+initramfs целиком в ОЗУ, NAND только читается, список печатается в UART между маркерами `# === 8< ===` — скопируйте из PuTTY в файл.
+2. **Плата пустая/руфс сломан** — RAM-сканер flasher.sh (пункт 5 «Скан плохих PEB», образ `build/scan-initramfs.cpio.gz` собирается `build/make-scan-initramfs.sh`): ядро+initramfs целиком в ОЗУ, NAND только читается. Вывод идёт через **USB-C** (ACM-gadget → `/dev/ttyACM0` на хосте, никакой разборки и пайки) — flasher показывает лог живьём и сохраняет список в `bad-pebs-<имя>.txt`; UART — запасной канал, список там между маркерами `# === 8< ===`.
 
 Ловит заводские bad-блоки и PEB с неисправимой ECC («error -74»); исправимые битфлипы не видит (за ними следит `ubihealthd`). Старый способ тоже работает: `dmesg` (`bad node at LEB N` → PEB N+2).
 
