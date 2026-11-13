@@ -1180,7 +1180,10 @@ item_flash() {
 		local usize badfile bads="" b seg rstart rend f total
 		usize=$(stat -Lc%s "$ROOTFS_UBI")
 		total=$(( (usize + ERASE_BLOCK - 1) / ERASE_BLOCK ))
-		badfile="${BAD_PEB_FILE:-$HERE/../bad-pebs-shtab.txt}"
+		# Рабочая копия flasher.sh лежит в ~/Загрузки/marusia (файл рядом),
+		# клон репо - на уровень ниже (файл уровнем выше репо).
+		badfile="${BAD_PEB_FILE:-$HERE/bad-pebs-shtab.txt}"
+		[ -f "$badfile" ] || badfile="$HERE/../bad-pebs-shtab.txt"
 		if [ -f "$badfile" ]; then
 			while read -r b; do
 				case "$b" in ''|\#*) continue ;; esac
