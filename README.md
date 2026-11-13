@@ -42,7 +42,6 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 | `build/scan-bad-pebs` | Сканер плохих PEB: на живой плате из `/tmp` (ramfs) или внутри initramfs (`/scan`) |
 | `build/initramfs-init` + `build/make-scan-initramfs.sh` | Сборка `scan-initramfs.cpio.gz` (busybox+musl+сканер) для пункта 5 flasher.sh — скан с пустой платы через UART |
 | `flasher.sh` | Прошивальщик: USB-burn (окно 450 мс), бэкап, raw-запись сегментами |
-| `flash-custom-root.sh` | Обёртка: прошить rootfs-custom.ubi |
 | `build-rootfs.sh` | Сборка дерева rootfs с нуля (apk-init + оверлей) |
 | `marusia_defconfig` | Kernel defconfig для ядра автора |
 | `firmware/` | Kernel Image + DTB (ядро: [comp18man/vk-capsula-mini-a113x-linux](https://github.com/comp18man/vk-capsula-mini-a113x-linux)) |
@@ -96,7 +95,7 @@ sudo ./build/rebuild.sh
 
 ```bash
 # колонка в режиме USB burn (InUsbBurn, окно ~450 мс после reset)
-./flash-custom-root.sh
+./flasher.sh   # пункт 3 меню
 ```
 
 `flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt` уровнем выше репо).
