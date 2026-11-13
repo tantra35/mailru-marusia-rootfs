@@ -27,6 +27,12 @@ panel() {
 panel "1111"   # /init стартовал, devtmpfs жив
 
 # --- USB ACM gadget ---
+# Сначала отвязать авто-гаджет g_serial (ядро собрано с USB_G_SERIAL —
+# он даёт console=ttyGS0 для лога ядра), UDC один на всех.
+for u in /sys/class/udc/*; do
+	[ -e "$u/UDC" ] && echo "" > "$u/UDC" 2>/dev/null
+done
+
 G=/config/usb_gadget/scan
 gadget=''
 if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then

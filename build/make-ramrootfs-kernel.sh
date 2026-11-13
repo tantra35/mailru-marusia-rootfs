@@ -16,6 +16,11 @@ B="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TREE="${TREE:-$B/../rootfs}"                    # aarch64-дерево: busybox, musl
 KSRC="${KSRC:-$B/../../kernel-src}"             # исходники ядра автора
 TEXTOFF=0x1080000                               # как в fw_alpine/Image автора
+
+# gen_init_cpio: родной тул ядра — собирает newc-cpio из спецификации,
+# умеет device-ноды БЕЗ root (mknod в staging под юзером невозможен)
+GEN="$B/gen_init_cpio"
+[ -x "$GEN" ] || gcc -O2 -o "$GEN" "$KSRC/usr/gen_init_cpio.c"
 STAGE="$B/initramfs-scan"
 
 [ -x "$TREE/bin/busybox" ] || {
@@ -29,24 +34,43 @@ STAGE="$B/initramfs-scan"
 command -v aarch64-linux-gnu-gcc >/dev/null ||
 	{ echo "нет aarch64-linux-gnu-gcc: apt install gcc-aarch64-linux-gnu flex bison libssl-dev" >&2; exit 1; }
 
-# 1) initramfs-каталог: busybox+musl+init+scan+config
+# 1) initramfs: staging + СПЕЦИФИКАЦИЯ gen_init_cpio — так в cpio попадают
+#    device-ноды /dev/console|null|tty (devtmpfs для initramfs не автомонтируется,
+#    а без /dev/console весь вывод /init и сканера молча теряется)
 rm -rf "$STAGE"
 mkdir -p "$STAGE/bin" "$STAGE/lib" "$STAGE/dev" "$STAGE/proc" "$STAGE/sys" "$STAGE/tmp" "$STAGE/config"
 cp "$TREE/bin/busybox" "$STAGE/bin/busybox"
 cp -L "$TREE/lib/ld-musl-aarch64.so.1" "$STAGE/lib/"
-cp "$B/initramfs-init" "$STAGE/init"
+cp "${ALT_INIT:-$B/initramfs-init}" "$STAGE/init"
 cp "$B/scan-bad-pebs" "$STAGE/scan"
 chmod 755 "$STAGE/init" "$STAGE/scan" "$STAGE/bin/busybox"
 ln -s busybox "$STAGE/bin/sh"
 
-# 2) несжатый cpio в корень исходников (INITRAMFS_SOURCE относительный)
-(cd "$STAGE" && find . -print0 | cpio --null -o -H newc -R 0:0 --quiet) \
-	> "$KSRC/initramfs.cpio"
+{
+	echo "dir /bin 0755 0 0"
+	echo "file /bin/busybox $STAGE/bin/busybox 0755 0 0"
+	echo "slink /bin/sh /bin/busybox 0777 0 0"
+	echo "dir /lib 0755 0 0"
+	echo "file /lib/ld-musl-aarch64.so.1 $STAGE/lib/ld-musl-aarch64.so.1 0755 0 0"
+	echo "dir /dev 0755 0 0"
+	echo "nod /dev/console 0600 0 0 c 5 1"
+	echo "nod /dev/null 0666 0 0 c 1 3"
+	echo "nod /dev/tty 0620 0 0 c 5 0"
+	echo "dir /proc 0755 0 0"
+	echo "dir /sys 0755 0 0"
+	echo "dir /tmp 0755 0 0"
+	echo "dir /config 0755 0 0"
+	echo "file /init $STAGE/init 0755 0 0"
+	echo "file /scan $STAGE/scan 0755 0 0"
+} | "$GEN" - > "$KSRC/initramfs.cpio"
 
 # 3) ядро: defconfig автора + ram-фрагмент
 cd "$KSRC"
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- marusia_mini_defconfig > /dev/null
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- marusia_mini_ram.config > /dev/null
+# USB_G_SERIAL: авто-гаджет для console=ttyGS0 (консоль ядра видна на хосте).
+# /init отвязывает его перед созданием ACM-gadget'а (UDC один на всех).
+scripts/config --file .config -e USB_G_SERIAL
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig > /dev/null
 grep -q '^CONFIG_INITRAMFS_SOURCE="initramfs.cpio"$' .config ||
 	{ echo "INITRAMFS_SOURCE не применился — смотри .config" >&2; exit 1; }
@@ -68,5 +92,5 @@ f.write(bytes(d))
 f.close()
 EOF
 
-cp "$KSRC/arch/arm64/boot/Image" "$B/../Image-ramrootfs"
-echo "=== ГОТОВО: $B/../Image-ramrootfs ($(stat -c%s "$B/../Image-ramrootfs") байт) ==="
+cp "$KSRC/arch/arm64/boot/Image" "$B/../../Image-ramrootfs"
+echo "=== ГОТОВО: $B/../../Image-ramrootfs ($(stat -c%s "$B/../../Image-ramrootfs") байт) ==="
