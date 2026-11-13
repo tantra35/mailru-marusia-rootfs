@@ -13,10 +13,12 @@ umask 022
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev || mdev -s
-mount -t configfs none /sys/kernel/config 2>/dev/null
+# /config — точка монтирования configfs, СОЗДАНА В САМОМ initramfs:
+# /sys/kernel/config в sysfs не существует и mkdir там не пройдёт
+mount -t configfs none /config 2>/dev/null
 
 # --- USB ACM gadget ---
-G=/sys/kernel/config/usb_gadget/scan
+G=/config/usb_gadget/scan
 gadget=''
 if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 	echo 0x1d6b > "$G/idVendor"    # Linux Foundation

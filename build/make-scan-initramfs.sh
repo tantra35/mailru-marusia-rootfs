@@ -24,7 +24,7 @@ STAGE="$B/initramfs-scan"
 }
 
 rm -rf "$STAGE"
-mkdir -p "$STAGE/bin" "$STAGE/lib" "$STAGE/dev" "$STAGE/proc" "$STAGE/sys" "$STAGE/tmp"
+mkdir -p "$STAGE/bin" "$STAGE/lib" "$STAGE/dev" "$STAGE/proc" "$STAGE/sys" "$STAGE/tmp" "$STAGE/config"
 cp "$TREE/bin/busybox" "$STAGE/bin/busybox"
 cp -L "$TREE/lib/ld-musl-aarch64.so.1" "$STAGE/lib/"
 cp "$B/initramfs-init" "$STAGE/init"
