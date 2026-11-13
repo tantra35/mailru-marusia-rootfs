@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# Без supervisor=supervise-daemon — единообразно с mpd/upmpdcli/marusia-d:
+# демон без автоперезапуска, упал = лежит до ручного rc-service spotifyd restart.
+# Foreground (--no-daemon) под command_background: start-stop-daemon форкает,
+# пишет pid и уходит, демон переподвешивается на init (ppid=1).
+name="spotifyd"
+description="Spotify Connect daemon"
+
+command=/usr/bin/spotifyd
+command_args="--no-daemon"
+command_user=spotifyd:audio
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--make-pidfile"
+
+depend() {
+	need localmount pulseaudio
+	use net
+	after net-wait firewall
+}
+
+start_pre() {
+	# В template нет /etc/pulse/client.conf — без PULSE_SERVER libpulse
+	# молча не найдёт system-mode сервер (как paplay в marusia-d).
+	export PULSE_SERVER=unix:/var/run/pulse/native
+	checkpath --directory --owner spotifyd:audio --mode 0755 /var/cache/spotifyd
+}
