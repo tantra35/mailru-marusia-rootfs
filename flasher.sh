@@ -10,28 +10,35 @@ _self="${BASH_SOURCE[0]}"
 case $_self in */*) _self="${_self%/*}" ;; *) _self=. ;; esac
 HERE="$(cd -- "$_self" && pwd)"
 unset _self
-ROOT="$(cd -- "$HERE/../.." && pwd)"
+
+# Данные (fw_alpine, stock, flasher_stuff, update) живут РЯДОМ с репо и не
+# входят в него: искать сперва в $HERE, потом на уровень выше.
+_first() {	# firstdir/firstfile: $1 = имя, $2 = test-флаг (-d/-f)
+	if [ "$2" "$HERE/$1" ]; then printf '%s' "$HERE/$1"
+	else printf '%s' "$HERE/../$1"
+	fi
+}
 
 UPDATE="${UPDATE:-}"
 if [ -z "$UPDATE" ]; then
-	for c in "$HERE/update" "$ROOT/tools/update"; do
+	for c in "$HERE/tools/update" "$HERE/update" "$HERE/../update"; do
 		if [ -x "$c" ]; then UPDATE="$c"; break; fi
 	done
 fi
-[ -n "$UPDATE" ] || UPDATE="$(command -v update 2>/dev/null || echo "$HERE/update")"
+[ -n "$UPDATE" ] || UPDATE="$(command -v update 2>/dev/null || echo "$HERE/tools/update")"
 
-BOARDS="${BOARDS:-$HERE/flasher_stuff}"
-FW_ALPINE="${FW_ALPINE:-$HERE/fw_alpine}"
-IMAGE="${IMAGE:-$FW_ALPINE/Image}"
-DTB="${DTB:-$FW_ALPINE/vk-mini-a113x.dtb}"
+BOARDS="${BOARDS:-$(_first flasher_stuff -d)}"
+FW_ALPINE="${FW_ALPINE:-$(_first fw_alpine -d)}"
+IMAGE="${IMAGE:-$HERE/firmware/Image}"                     # ядро/dtb — из git
+DTB="${DTB:-$HERE/firmware/vk-mini-a113x.dtb}"
 ROOTFS_UBI="${ROOTFS_UBI:-$FW_ALPINE/alpine3.24.1_rootfs.ubi}"
 
-STOCK="${STOCK:-$HERE/stock}"
+STOCK="${STOCK:-$(_first stock -d)}"
 
-RECOVERY="${RECOVERY:-$HERE/Image-ramrootfs}"
+RECOVERY="${RECOVERY:-$(_first Image-ramrootfs -f)}"
 
 # Initramfs-сканер плохих PEB (собирается build/make-scan-initramfs.sh)
-SCINITRD="${SCINITRD:-$HERE/scan-initramfs.cpio.gz}"
+SCINITRD="${SCINITRD:-$HERE/build/scan-initramfs.cpio.gz}"
 
 IDENTIFY_TIMEOUT="${IDENTIFY_TIMEOUT:-120}"
 IDENTIFY_POLL="${IDENTIFY_POLL:-0.1}"
