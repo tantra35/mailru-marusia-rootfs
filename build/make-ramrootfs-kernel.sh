@@ -69,10 +69,14 @@ ln -s busybox "$STAGE/bin/sh"
 	echo "file /scan $STAGE/scan 0755 0 0"
 } | "$GEN" - > "$KSRC/initramfs.cpio"
 
-# 3) ядро: defconfig автора + ram-фрагмент
+# 3) ядро: defconfig автора + наш initramfs
+#    marusia_mini_ram.config автора НЕ применяем: он добавляет wifi (CFG80211/
+#    W1_AML + extra-firmware) — сканеру wifi не нужен, а драйвер заспаммивает
+#    консоль (gserial теряет байты лога) и тянет firmware-файлы в сборку.
 cd "$KSRC"
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- marusia_mini_defconfig > /dev/null
-make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- marusia_mini_ram.config > /dev/null
+# INITRAMFS_SOURCE относительный к корню исходников
+scripts/config --file .config --set-str INITRAMFS_SOURCE "initramfs.cpio"
 # USB_G_SERIAL: авто-гаджет для console=ttyGS0 (консоль ядра видна на хосте).
 # /init отвязывает его перед созданием ACM-gadget'а (UDC один на всех).
 scripts/config --file .config -e USB_G_SERIAL
