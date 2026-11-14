@@ -61,7 +61,30 @@ if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
 	panel "3333"   # UDC привязан, гаджет сконфигурирован
 	sleep 1   # дать хосту увидеть ttyACM0
 else
-	panel "9999"   # dwc2 так и не пробился за 120 с
+	# Диагностика: кольцо printk хранит ВСЁ (консоль могла терять байты).
+	# Показ: 9999 -> число dwc2/usb-строк -> цикл их кодов завершения
+	# (младшие 4 цифры; 0000 = строка без кода). По 1.5 с, по кругу.
+	panel "9999"
+	sleep 2
+	dmesg | grep -iE "dwc2|ff400000|usb-ctrl|usb2-phy|g12a-usb|udc" \
+		> /tmp/dlines 2>/dev/null
+	cnt=$(wc -l < /tmp/dlines)
+	panel "9$(printf '%03d' "$cnt")"
+	sleep 3
+	while :; do
+		i=1
+		total="$cnt"
+		[ "$total" -eq 0 ] && total=1
+		while [ "$i" -le "$total" ]; do
+			code=$(sed -n "${i}p" /tmp/dlines |
+				grep -oE '(-?[0-9]+)$' | tr -d '-')
+			[ -n "$code" ] || code="0000"
+			panel "$(printf '%04d' "$code")"
+			sleep 1.5
+			i=$((i + 1))
+		done
+		panel "9999"; sleep 2
+	done
 fi
 
 # Shell на USB-serial (если gadget жив): туда же шёл скан
