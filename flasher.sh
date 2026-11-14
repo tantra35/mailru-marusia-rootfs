@@ -1448,7 +1448,21 @@ USB-serial с платы не появился - ACM-gadget не поднялс�
 	cat "$acm" >> "$out" &
 	catpid=$!
 
-	dialog --tailbox "$out" 30 90   # скан идёт, лог растёт живьём
+	# Живой прогресс: строки "просканировано N/1696" с ttyACM -> процент в gauge.
+	# Хвост (последние ~100 строк) оседает в $out, список режется из него ниже.
+	{
+		last=''
+		while kill -0 "$catpid" 2>/dev/null; do
+			n=$(grep -aoE '[0-9]+/1696' "$out" 2>/dev/null | tail -n 1 || true)
+			if [ -n "$n" ] && [ "$n" != "$last" ]; then
+				last=$n
+				echo "$(( ${n%%/*} * 100 / 1696 ))"
+			fi
+			sleep 1
+		done
+		echo 100
+	} | dialog --title "Проверка плохих PEB" \
+		--gauge "Идёт проверка bad-блоков флеша: чтение PEB по очереди.\nПрогресс также на панель-часах колонки (номер PEB).\nПо завершении здесь появится итог." 8 62 0
 
 	kill "$catpid" 2>/dev/null || true
 
