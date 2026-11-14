@@ -1449,16 +1449,20 @@ USB-serial с платы не появился - ACM-gadget не поднялс�
 	catpid=$!
 
 	# Живой прогресс: строки "просканировано N/1696" с ttyACM -> процент в gauge.
+	# Окно закрывается по маркеру END bad-pebs (скан готов) или по таймауту 20 мин.
 	# Хвост (последние ~100 строк) оседает в $out, список режется из него ниже.
 	{
 		last=''
-		while kill -0 "$catpid" 2>/dev/null; do
+		waited=0
+		while kill -0 "$catpid" 2>/dev/null && [ "$waited" -lt 1200 ]; do
 			n=$(grep -aoE '[0-9]+/1696' "$out" 2>/dev/null | tail -n 1 || true)
 			if [ -n "$n" ] && [ "$n" != "$last" ]; then
 				last=$n
 				echo "$(( ${n%%/*} * 100 / 1696 ))"
 			fi
+			grep -aq '8< === END bad-pebs' "$out" 2>/dev/null && { echo 100; break; }
 			sleep 1
+			waited=$((waited + 1))
 		done
 		echo 100
 	} | dialog --title "Проверка плохих PEB" \
