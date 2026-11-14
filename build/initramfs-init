@@ -60,15 +60,23 @@ if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
 	panel "3333"   # UDC привязан, гаджет сконфигурирован
 	sleep 1   # дать хосту увидеть ttyACM0
 else
-	# Код A (3с): [устройство ff400000.usb есть, устройство ffe09080.usb
-	# есть, драйвер dwc2 есть, драйвер glue dwc3-meson-g12a есть]
+	# Код A (4с): [dev ff400000.usb есть, dev ffe09080.usb есть,
+	#  драйвер dwc2 есть, драйвер glue dwc3-meson-g12a есть]
 	a=""; [ -d /sys/bus/platform/devices/ff400000.usb ] && a="1" || a="0"
 	[ -d /sys/bus/platform/devices/ffe09080.usb ] && a="${a}1" || a="${a}0"
 	[ -d /sys/bus/platform/drivers/dwc2 ] && a="${a}1" || a="${a}0"
 	[ -d /sys/bus/platform/drivers/dwc3-meson-g12a ] && a="${a}1" || a="${a}0"
-	panel "$a"; sleep 3
+	panel "$a"; sleep 4
 	panel "8888"   # dwc2 не пробился даже принудительно — смотри /tmp/dlines
-	dmesg | grep -iE "dwc2|ff400000|ffe09080|usb-ctrl|usb2-phy|g12a-usb|deferred|supply|failed|error" \
+	# Код B (4с): [waiting_for_supplier есть, в нём 1,
+	#  fw_devlink= в /proc/cmdline, "dwc2 probing" есть в kmsg]
+	b=""; [ -e /sys/bus/platform/devices/ff400000.usb/waiting_for_supplier ] && b="1" || b="0"
+	grep -qx 1 /sys/bus/platform/devices/ff400000.usb/waiting_for_supplier 2>/dev/null &&
+		b="${b}1" || b="${b}0"
+	grep -q "fw_devlink" /proc/cmdline 2>/dev/null && b="${b}1" || b="${b}0"
+	dmesg | grep -q "dwc2 probing" 2>/dev/null && b="${b}1" || b="${b}0"
+	panel "$b"; sleep 4
+	dmesg | grep -iE "dwc2|ff400000|ffe09080|usb-ctrl|usb2-phy|g12a-usb|deferred|supply|dwc2 probing" \
 		> /tmp/dlines 2>/dev/null
 	cnt=$(wc -l < /tmp/dlines)
 	panel "9$(printf '%03d' "$cnt")"
