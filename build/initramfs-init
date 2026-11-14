@@ -1,16 +1,16 @@
 #!/bin/sh
 # /init аварийного сканера плохих PEB (initramfs целиком в RAM).
 # NAND не монтируется и не пишется: скан — только чтение /dev/mtd*.
-# console= задаёт flasher.sh (rdinit=/init).
+# console= задаёт flasher (rdinit=/init): console=ttyAML0 + console=ttyGS0.
 #
-# Вывод: UART (console=) И USB ACM-gadget — на хосте /dev/ttyACM0.
+# КАНАЛ ВЫВОДА — USB-C: g_serial (USB_G_SERIAL=y) занимает UDC, когда dwc2
+# пробьётся, и даёт /dev/ttyGS0; /dev/console вещает на ВСЕ зарегистрированные
+# консоли — значит всё, что пишется в /dev/console, хост видит как ttyACM0.
+# UART (ttyAML0) — дублирующий канал для пайщиков.
 #
-# ПОЧЕМУ ПИНАЕТСЯ bind: dwc2 (ff400000.usb) может уйти в deferred probe
-# (phy ещё не готов) и дальше просыпаться только по новым событиям —
-# которых в голом initramfs не бывает. Запись в drivers/dwc2/bind
-# каждый секунду заставляет ядро повторять probe, пока не появится UDC.
-# Появившийся UDC мгновенно занимает авто-гаджет g_serial (USB_G_SERIAL=y,
-# он же console=ttyGS0) — отвязываем его и вешаем свой ACM-gadget.
+# dwc2 может уйти в deferred probe на старте (phy не готов) и в голом
+# initramfs никогда не проснуться — нет событий-триггеров. Поэтому каждую
+# секунду пинаем drivers_probe, пока UDC не появится.
 
 PATH=/bin
 umask 022
@@ -18,19 +18,16 @@ umask 022
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev || mdev -s
-# /config — точка монтирования configfs, СОЗДАНА В САМОМ initramfs:
-# /sys/kernel/config в sysfs не существует и mkdir там не пройдёт
-mount -t configfs none /config 2>/dev/null
 
-# маячок глазами: фазы на панель-часах (seg-led, без USB)
 panel() {
 	for d in /sys/bus/platform/devices/*/linedisp.* /sys/class/linedisp/*; do
 		[ -e "$d/message" ] && { echo "$1" > "$d/message" 2>/dev/null; return 0; }
 	done
 	return 1
 }
+
 panel "1111"   # /init стартовал, devtmpfs жив
-panel "2222"   # ждём UDC до 10 минут (таймер на панели), пин drivers_probe
+panel "2222"   # ждём UDC (пин drivers_probe раз в секунду, таймер 2NNN)
 
 udc=''
 n=0
@@ -40,108 +37,26 @@ while [ "$n" -lt 600 ]; do
 	echo ff400000.usb > /sys/bus/platform/drivers_probe 2>/dev/null
 	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
 	[ -n "$udc" ] && break
-	[ $((n % 30)) -eq 0 ] && mdev -s 2>/dev/null
-	panel "$(printf '2%03d' $((n / 10)))"   # таймер 2000..2599
 	sleep 1
 	n=$((n + 1))
+	panel "$(printf '2%03d' $((n / 10)))"   # таймер 2000..2599
 done
-
-G=/config/usb_gadget/scan
-gadget=''
-mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null
-echo 0x1d6b > "$G/idVendor"    # Linux Foundation
-echo 0x0104 > "$G/idProduct"
-mkdir -p "$G/strings/0x409"
-echo "marusia-scan" > "$G/strings/0x409/product"
-ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
-
-# если UDC так и не появился — пинуем ещё 10 минут (таймер 9000..9599)
-if [ -z "$udc" ]; then
-	panel "9999"
-	m2=0
-	while [ -z "$udc" ] && [ "$m2" -lt 600 ]; do
-		echo ffe09080.usb > /sys/bus/platform/drivers_probe 2>/dev/null
-		echo ff400000.usb > /sys/bus/platform/drivers_probe 2>/dev/null
-		udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
-		[ $((m2 % 30)) -eq 0 ] && mdev -s 2>/dev/null
-		panel "$(printf '9%03d' $((m2 / 10)))"
-		sleep 1
-		m2=$((m2 + 1))
-	done
-fi
-
-if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
-	gadget=yes
-	panel "3333"   # UDC привязан, гаджет сконфигурирован
-	sleep 1   # дать хосту увидеть ttyACM0
-else
-	# Код A (4с): [dev ff400000.usb есть, dev ffe09080.usb есть,
-	#  драйвер dwc2 есть, драйвер glue dwc3-meson-g12a есть]
-	a=""; [ -d /sys/bus/platform/devices/ff400000.usb ] && a="1" || a="0"
-	[ -d /sys/bus/platform/devices/ffe09080.usb ] && a="${a}1" || a="${a}0"
-	[ -d /sys/bus/platform/drivers/dwc2 ] && a="${a}1" || a="${a}0"
-	[ -d /sys/bus/platform/drivers/dwc3-meson-g12a ] && a="${a}1" || a="${a}0"
-	panel "$a"; sleep 4
-	panel "8888"   # dwc2 не пробился даже принудительно — смотри /tmp/dlines
-	# Код B (4с): [waiting_for_supplier есть, в нём 1,
-	#  fw_devlink= в /proc/cmdline, "dwc2 probing" есть в kmsg]
-	b=""; [ -e /sys/bus/platform/devices/ff400000.usb/waiting_for_supplier ] && b="1" || b="0"
-	grep -qx 1 /sys/bus/platform/devices/ff400000.usb/waiting_for_supplier 2>/dev/null &&
-		b="${b}1" || b="${b}0"
-	grep -q "fw_devlink" /proc/cmdline 2>/dev/null && b="${b}1" || b="${b}0"
-	dmesg | grep -q "dwc2 probing" 2>/dev/null && b="${b}1" || b="${b}0"
-	panel "$b"; sleep 4
-	dmesg | grep -iE "dwc2|ff400000|ffe09080|usb-ctrl|usb2-phy|g12a-usb|deferred|supply|probing" \
-		> /tmp/dlines 2>/dev/null
-	cnt=$(wc -l < /tmp/dlines)
-	panel "9$(printf '%03d' "$cnt")"
-	sleep 3
-	while :; do
-		i=1
-		total="$cnt"
-		[ "$total" -eq 0 ] && total=1
-		while [ "$i" -le "$total" ]; do
-			code=$(sed -n "${i}p" /tmp/dlines |
-				grep -oE '(-?[0-9]+)$' | tr -d '-')
-			[ -n "$code" ] || code="0000"
-			panel "$(printf '%04d' "$code")"
-			sleep 1.5
-			i=$((i + 1))
-		done
-		panel "8888"; sleep 2
-	done
-fi
-
-# Shell на USB-serial (если gadget жив): туда же шёл скан
-[ -n "$gadget" ] &&
-	setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' 2>/dev/null &
 
 echo
 echo "### scan-bad-pebs initrd: система в RAM, NAND только читается"
-[ -n "$gadget" ] &&
-	echo "### вывод: UART и USB-C (/dev/ttyACM0 на хосте)" ||
-	echo "### USB gadget не поднялся - вывод только в UART"
-
-if [ -n "$gadget" ]; then
-	echo "# === 8< === COPY bad-pebs 8< ===" > /dev/console
-	echo "# === 8< === COPY bad-pebs 8< ===" > /dev/ttyGS0
-	sh /scan 2>&1 | tee /dev/console /dev/ttyGS0 > /dev/null
-	echo "# === 8< === END bad-pebs 8< ===" > /dev/console
-	echo "# === 8< === END bad-pebs 8< ===" > /dev/ttyGS0
-else
-	echo "# === 8< === COPY bad-pebs 8< ==="
-	sh /scan
-	echo "# === 8< === END bad-pebs 8< ==="
-fi
+echo "### вывод: UART и USB-C (/dev/ttyACM0 на хосте)"
+echo "# === 8< === COPY bad-pebs 8< ===" > /dev/console
+sh /scan 2>&1 | tee /dev/console /dev/ttyGS0 > /dev/null
+echo "# === 8< === END bad-pebs 8< ===" > /dev/console
+echo "# === 8< === END bad-pebs 8< ===" > /dev/ttyGS0
 
 echo
 echo "# MTD/ECC-строки ядра за скан, для сведений:"
 dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /' > /dev/console
-[ -n "$gadget" ] &&
-	dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /' > /dev/ttyGS0
+dmesg | grep -iE "mtd|ecc|bad" | tail -n 30 | sed 's/^/# /' > /dev/ttyGS0
 
 echo
-echo "### готово. Shell: UART$( [ -n "$gadget" ] && echo ' и ttyGS0 (USB-C)'). Выключить: poweroff -f"
+echo "### готово. Shell: UART и ttyGS0 (USB-C). Выключить: poweroff -f"
 # Мы PID 1: shell вместо exec, чтобы после exit платы не паниковала зря.
 sh
 poweroff -f

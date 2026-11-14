@@ -79,8 +79,10 @@ cd "$KSRC"
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- marusia_mini_defconfig > /dev/null
 # INITRAMFS_SOURCE относительный к корню исходников
 scripts/config --file .config --set-str INITRAMFS_SOURCE "initramfs.cpio"
-# USB_G_SERIAL НЕ включаем: авто-гаджет мгновенно занимает появившийся UDC
-# и не отвязывается записью в UDC - наш ACM-gadget тогда не привязать никогда
+# USB_G_SERIAL=y ОБЯЗАТЕЛЕН: авто-гаджет занимает UDC и даёт console=ttyGS0 -
+# весь лог ядра и вывод сканера идёт на хост как /dev/ttyACM0 (USB-C).
+# Конфиг-гаджет не используем вовсе.
+scripts/config --file .config -e USB_G_SERIAL
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig > /dev/null
 grep -q '^CONFIG_INITRAMFS_SOURCE="initramfs.cpio"$' .config ||
 	{ echo "INITRAMFS_SOURCE не применился — смотри .config" >&2; exit 1; }
