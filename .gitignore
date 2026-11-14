@@ -1,26 +1,28 @@
+# артефакты сканера плохих PEB
 # невоспроизводимые / тяжёлые артефакты
-rootfs/
-chroot/
-build/apk-cache/
-build/rootfs-custom.ubi
-*.ubi
-*.log
 # приватный ключ подписи наших пакетов (публичный .rsa.pub публикуется)
-signing/*.rsa
+bad-pebs*.txt
+build/apk-cache/
+build/bad-pebs*.txt
+build/initramfs.cpio
+build/initramfs-scan/
+build/rootfs-custom.ubi
+build/rootfs.ubifs
+build/scan-initramfs.cpio.gz
 build/signing/*.rsa
+chroot/
+gen_init_cpio
+Image-ramrootfs
+initramfs-scan/
+*.log
+# per-плата списки плохих PEB — частная история, живут рядом с flasher.sh
+# RAM-ядро со вшитым сканером (собирается make-ramrootfs-kernel.sh)
+rootfs/
+rootfs-apk/
+rootfs-min/
+signing/*.rsa
 # ssh host-ключи: sshd генерирует новые при первом старте, .pub публикуем
 template/etc/ssh/ssh_host_ecdsa_key
 template/etc/ssh/ssh_host_ed25519_key
 template/etc/ssh/ssh_host_rsa_key
-rootfs-apk/
-rootfs-min/
-# артефакты сканера плохих PEB
-build/scan-initramfs.cpio.gz
-build/initramfs-scan/
-build/rootfs.ubifs
-# per-плата списки плохих PEB — частная история, живут рядом с flasher.sh
-bad-pebs*.txt
-build/bad-pebs*.txt
-# RAM-ядро со вшитым сканером (собирается make-ramrootfs-kernel.sh)
-Image-ramrootfs
-build/initramfs.cpio
+*.ubi
