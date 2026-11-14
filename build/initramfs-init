@@ -30,18 +30,18 @@ panel() {
 	return 1
 }
 panel "1111"   # /init стартовал, devtmpfs жив
-panel "2222"   # ждём UDC: dwc2 откладывается на старте (phy не готов) —
-               # в голом initramfs отложенные probe сами не просыпаются,
-               # поэтому принудительно дёргаем drivers_probe каждую секунду
+panel "2222"   # ждём UDC до 10 минут (таймер на панели), пин drivers_probe
 
 udc=''
 n=0
-while [ "$n" -lt 300 ]; do
+while [ "$n" -lt 600 ]; do
 	# glue (usb-ctrl) должен привязаться раньше своего ребёнка dwc2
 	echo ffe09080.usb > /sys/bus/platform/drivers_probe 2>/dev/null
 	echo ff400000.usb > /sys/bus/platform/drivers_probe 2>/dev/null
 	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
 	[ -n "$udc" ] && break
+	[ $((n % 30)) -eq 0 ] && mdev -s 2>/dev/null
+	panel "$(printf '2%03d' $((n / 10)))"   # таймер 2000..2599
 	sleep 1
 	n=$((n + 1))
 done
@@ -54,6 +54,21 @@ echo 0x0104 > "$G/idProduct"
 mkdir -p "$G/strings/0x409"
 echo "marusia-scan" > "$G/strings/0x409/product"
 ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
+
+# если UDC так и не появился — пинуем ещё 10 минут (таймер 9000..9599)
+if [ -z "$udc" ]; then
+	panel "9999"
+	m2=0
+	while [ -z "$udc" ] && [ "$m2" -lt 600 ]; do
+		echo ffe09080.usb > /sys/bus/platform/drivers_probe 2>/dev/null
+		echo ff400000.usb > /sys/bus/platform/drivers_probe 2>/dev/null
+		udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+		[ $((m2 % 30)) -eq 0 ] && mdev -s 2>/dev/null
+		panel "$(printf '9%03d' $((m2 / 10)))"
+		sleep 1
+		m2=$((m2 + 1))
+	done
+fi
 
 if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
 	gadget=yes
