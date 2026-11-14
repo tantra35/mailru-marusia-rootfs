@@ -52,7 +52,7 @@ ln -s busybox "$STAGE/bin/sh"
 	echo "slink /bin/sh /bin/busybox 0777 0 0"
 	# апплеты, которыми пользуются /init и /scan: без симлинков busybox
 	# их не находит (PATH=/bin), и вся инициализация молча сыпется
-	for a in mount mkdir ls sleep tee head cat sed date grep nanddump uname; do
+	for a in mount mkdir ls sleep tee head cat sed date grep nanddump uname ln rmdir; do
 		echo "slink /bin/$a /bin/busybox 0777 0 0"
 	done
 	echo "dir /lib 0755 0 0"
