@@ -59,23 +59,34 @@ if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 		panel "3333"   # UDC привязан, гаджет сконфигурирован
 		sleep 1   # дать хосту увидеть ttyACM0
 	else
-		# Диагностика: 4-битный код (2 с), затем число строк фильтрованного
-		# dmesg (2 с), затем циклически - коды завершения probe каждой строки
-		# (младшие 4 цифры, дефисы выброшены): 0517=deferred, 0019=ENODEV...
-		c=""
-		[ -d /sys/bus/platform/drivers/dwc2 ] && c="1" || c="0"
+		# Диагностика по кругу:
+		#  код A (2с): dwc2 [драйвер есть, ff400000.usb привязан, phy-драйвер
+		#              8b (имя-приманка, всегда 0), phy привязан]
+		#  код B (2с): glue  [драйвер dwc3-meson-g12a есть, ffe09080.usb
+		#              привязан, gxl-usb2-phy драйвер есть, 9020 привязан]
+		#  9NNN (2с): строк фильтрованного dmesg
+		#  затем коды errno строк по 2с (0517=deferred, 0019=ENODEV...)
+		c=""; [ -d /sys/bus/platform/drivers/dwc2 ] && c="1" || c="0"
 		ls /sys/bus/platform/devices/ff400000.usb/driver >/dev/null 2>&1 &&
 			c="${c}1" || c="${c}0"
 		[ -d /sys/bus/platform/drivers/phy-meson8b-usb2 ] && c="${c}1" || c="${c}0"
 		ls /sys/bus/platform/devices/*9020*/driver >/dev/null 2>&1 &&
 			c="${c}1" || c="${c}0"
-		panel "$c"
-		sleep 4
-		dmesg | grep -iE "dwc2|ff400000|usb2-phy|usb-ctrl|g12a-usb|deferred" \
+		panel "$c"; sleep 2
+
+		g=""; [ -d /sys/bus/platform/drivers/dwc3-meson-g12a ] && g="1" || g="0"
+		ls /sys/bus/platform/devices/ffe09080.usb/driver >/dev/null 2>&1 &&
+			g="${g}1" || g="${g}0"
+		[ -d /sys/bus/platform/drivers/phy-meson-gxl-usb2 ] && g="${g}1" || g="${g}0"
+		ls /sys/bus/platform/devices/*9020*/driver >/dev/null 2>&1 &&
+			g="${g}1" || g="${g}0"
+		panel "$g"; sleep 2
+
+		dmesg | grep -iE "dwc2|ff400000|ffe09080|usb2-phy|usb-ctrl|g12a-usb|deferred|supply" \
 			> /tmp/dlines 2>/dev/null
 		cnt=$(wc -l < /tmp/dlines)
 		panel "9$(printf '%03d' "$cnt")"
-		sleep 4
+		sleep 3
 		while :; do
 			i=1
 			total="$cnt"
@@ -88,6 +99,9 @@ if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 				sleep 2
 				i=$((i + 1))
 			done
+			panel "$c"; sleep 2
+			panel "$g"; sleep 2
+			panel "9$(printf '%03d' "$cnt")"; sleep 2
 		done
 	fi
 fi
