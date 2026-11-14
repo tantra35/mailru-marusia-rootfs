@@ -43,7 +43,8 @@ cp "$TREE/bin/busybox" "$STAGE/bin/busybox"
 cp -L "$TREE/lib/ld-musl-aarch64.so.1" "$STAGE/lib/"
 cp "${ALT_INIT:-$B/initramfs-init}" "$STAGE/init"
 cp "$B/scan-bad-pebs" "$STAGE/scan"
-chmod 755 "$STAGE/init" "$STAGE/scan" "$STAGE/bin/busybox"
+cp "$B/initramfs-panel" "$STAGE/panel"
+chmod 755 "$STAGE/init" "$STAGE/scan" "$STAGE/bin/busybox" "$STAGE/panel"
 ln -s busybox "$STAGE/bin/sh"
 
 {
