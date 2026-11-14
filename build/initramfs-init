@@ -91,7 +91,7 @@ else
 	grep -q "fw_devlink" /proc/cmdline 2>/dev/null && b="${b}1" || b="${b}0"
 	dmesg | grep -q "dwc2 probing" 2>/dev/null && b="${b}1" || b="${b}0"
 	panel "$b"; sleep 4
-	dmesg | grep -iE "dwc2|ff400000|ffe09080|usb-ctrl|usb2-phy|g12a-usb|deferred|supply|dwc2 probing" \
+	dmesg | grep -iE "dwc2|ff400000|ffe09080|usb-ctrl|usb2-phy|g12a-usb|deferred|supply|probing" \
 		> /tmp/dlines 2>/dev/null
 	cnt=$(wc -l < /tmp/dlines)
 	panel "9$(printf '%03d' "$cnt")"
