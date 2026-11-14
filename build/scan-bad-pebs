@@ -25,7 +25,7 @@ set -eu
 PEBSZ=131072   # erasesize, 128K
 dev=''
 
-while read -r mtd size name _; do
+while read -r mtd size erase name _; do
 	name=${name#\"}; name=${name%\"}
 	if [ "$name" = ubi ]; then
 		dev="/dev/${mtd%%:*}"
