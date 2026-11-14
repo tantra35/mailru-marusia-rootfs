@@ -23,6 +23,7 @@
 set -eu
 
 PEBSZ=131072   # erasesize, 128K
+PANEL=/bin/panel   # писать фазы/номер PEB на панель-часы (если есть)
 dev=''
 
 while read -r mtd size erase name _; do
@@ -44,6 +45,7 @@ echo "# Формат bad-pebs: номер PEB от начала раздела, 
 
 peb=0
 while [ "$peb" -lt "$total" ]; do
+	[ -x /bin/panel ] && /bin/panel "$(printf '%04d' "$peb")" 2>/dev/null
 	off=$((peb * PEBSZ))
 	rc=0
 	err=$(nanddump -f /dev/null -s "$off" -l "$PEBSZ" "$dev" 2>&1) || rc=$?
@@ -64,6 +66,7 @@ while [ "$peb" -lt "$total" ]; do
 		;;
 	esac
 	peb=$((peb + 1))
+	panel "$(printf '%04d' "$peb")" 2>/dev/null
 	[ $((peb % 128)) -eq 0 ] && echo "# просканировано $peb/$total" >&2
 done
 

@@ -67,6 +67,7 @@ ln -s busybox "$STAGE/bin/sh"
 	echo "dir /config 0755 0 0"
 	echo "file /init $STAGE/init 0755 0 0"
 	echo "file /scan $STAGE/scan 0755 0 0"
+	echo "file /bin/panel $STAGE/panel 0755 0 0"
 } | "$GEN" - > "$KSRC/initramfs.cpio"
 
 # 3) ядро: defconfig автора + наш initramfs

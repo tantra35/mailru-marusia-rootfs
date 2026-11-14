@@ -1,0 +1,7 @@
+#!/bin/sh
+# panel "NNNN" — вывести 4 символа на панель-часы (seg-led); молча уходит,
+# если панель недоступна. Используется /init и /scan в RAM-сканере.
+for d in /sys/bus/platform/devices/*/linedisp.* /sys/class/linedisp/*; do
+	[ -e "$d/message" ] && { echo "$1" > "$d/message" 2>/dev/null; exit 0; }
+done
+exit 1
