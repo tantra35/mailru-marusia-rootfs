@@ -3,9 +3,14 @@
 # NAND не монтируется и не пишется: скан — только чтение /dev/mtd*.
 # console= задаёт flasher.sh (rdinit=/init).
 #
-# Вывод идёт на UART (console=) И в USB ACM-gadget: на хосте плата
-# появляется как /dev/ttyACM0 (dwc2 usb@ffe09080, CONFIG_USB_CONFIGFS_ACM=y).
-# Если gadget не поднялся — скан всё равно идёт в UART.
+# Вывод: UART (console=) И USB ACM-gadget — на хосте /dev/ttyACM0.
+#
+# ПОЧЕМУ ПИНАЕТСЯ bind: dwc2 (ff400000.usb) может уйти в deferred probe
+# (phy ещё не готов) и дальше просыпаться только по новым событиям —
+# которых в голом initramfs не бывает. Запись в drivers/dwc2/bind
+# каждый секунду заставляет ядро повторять probe, пока не появится UDC.
+# Появившийся UDC мгновенно занимает авто-гаджет g_serial (USB_G_SERIAL=y,
+# он же console=ttyGS0) — отвязываем его и вешаем свой ACM-gadget.
 
 PATH=/bin
 umask 022
@@ -25,85 +30,38 @@ panel() {
 	return 1
 }
 panel "1111"   # /init стартовал, devtmpfs жив
+panel "2222"   # ждём UDC (dwc2 пинается bind'ом)
 
-# --- USB ACM gadget ---
-# Сначала отвязать авто-гаджет g_serial (ядро собрано с USB_G_SERIAL —
-# он даёт console=ttyGS0 для лога ядра), UDC один на всех.
-for u in /sys/class/udc/*; do
-	[ -e "$u/UDC" ] && echo "" > "$u/UDC" 2>/dev/null
+udc=''
+n=0
+while [ "$n" -lt 120 ]; do
+	echo ff400000.usb > /sys/bus/platform/drivers/dwc2/bind 2>/dev/null
+	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+	[ -n "$udc" ] && break
+	sleep 1
+	n=$((n + 1))
 done
 
 G=/config/usb_gadget/scan
 gadget=''
-if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
-	panel "2222"   # configfs смонтирован, дерево gadget создано
-	echo 0x1d6b > "$G/idVendor"    # Linux Foundation
-	echo 0x0104 > "$G/idProduct"
-	mkdir -p "$G/strings/0x409"
-	echo "marusia-scan" > "$G/strings/0x409/product"
-	ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
-	# dwc2/phy могут пробиться с большим запозданием (defprobe) — ждём 120 с
-	udc=''
-	n=0
-	while [ "$n" -lt 120 ]; do
-		udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
-		[ -n "$udc" ] && break
-		sleep 1
-		n=$((n + 1))
-		[ $((n % 30)) -eq 0 ] && echo "030$((n / 30))" > /dev/null 2>/dev/null
-	done
-	# маячок-отладка: 1d6b:a113 = /init дошёл до привязки UDC
-	echo 0xa113 > "$G/idProduct"
-	if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
-		gadget=yes
-		panel "3333"   # UDC привязан, гаджет сконфигурирован
-		sleep 1   # дать хосту увидеть ttyACM0
-	else
-		# Диагностика по кругу:
-		#  код A (2с): dwc2 [драйвер есть, ff400000.usb привязан, phy-драйвер
-		#              8b (имя-приманка, всегда 0), phy привязан]
-		#  код B (2с): glue  [драйвер dwc3-meson-g12a есть, ffe09080.usb
-		#              привязан, gxl-usb2-phy драйвер есть, 9020 привязан]
-		#  9NNN (2с): строк фильтрованного dmesg
-		#  затем коды errno строк по 2с (0517=deferred, 0019=ENODEV...)
-		c=""; [ -d /sys/bus/platform/drivers/dwc2 ] && c="1" || c="0"
-		ls /sys/bus/platform/devices/ff400000.usb/driver >/dev/null 2>&1 &&
-			c="${c}1" || c="${c}0"
-		[ -d /sys/bus/platform/drivers/phy-meson8b-usb2 ] && c="${c}1" || c="${c}0"
-		ls /sys/bus/platform/devices/*9020*/driver >/dev/null 2>&1 &&
-			c="${c}1" || c="${c}0"
-		panel "$c"; sleep 2
+mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null
+echo 0x1d6b > "$G/idVendor"    # Linux Foundation
+echo 0x0104 > "$G/idProduct"
+mkdir -p "$G/strings/0x409"
+echo "marusia-scan" > "$G/strings/0x409/product"
+ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
 
-		g=""; [ -d /sys/bus/platform/drivers/dwc3-meson-g12a ] && g="1" || g="0"
-		ls /sys/bus/platform/devices/ffe09080.usb/driver >/dev/null 2>&1 &&
-			g="${g}1" || g="${g}0"
-		[ -d /sys/bus/platform/drivers/phy-meson-gxl-usb2 ] && g="${g}1" || g="${g}0"
-		ls /sys/bus/platform/devices/*9020*/driver >/dev/null 2>&1 &&
-			g="${g}1" || g="${g}0"
-		panel "$g"; sleep 2
+# g_serial занял только что появившийся UDC — отвязать и занять своим
+for u in /sys/class/udc/*; do
+	[ -e "$u/UDC" ] && echo "" > "$u/UDC" 2>/dev/null
+done
 
-		dmesg | grep -iE "dwc2|ff400000|ffe09080|usb2-phy|usb-ctrl|g12a-usb|deferred|supply" \
-			> /tmp/dlines 2>/dev/null
-		cnt=$(wc -l < /tmp/dlines)
-		panel "9$(printf '%03d' "$cnt")"
-		sleep 3
-		while :; do
-			i=1
-			total="$cnt"
-			[ "$total" -eq 0 ] && total=1
-			while [ "$i" -le "$total" ]; do
-				code=$(sed -n "${i}p" /tmp/dlines |
-					grep -oE '(-?[0-9]+)$' | tr -d '-')
-				[ -n "$code" ] || code="0000"
-				panel "$(printf '%04d' "$code")"
-				sleep 2
-				i=$((i + 1))
-			done
-			panel "$c"; sleep 2
-			panel "$g"; sleep 2
-			panel "9$(printf '%03d' "$cnt")"; sleep 2
-		done
-	fi
+if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
+	gadget=yes
+	panel "3333"   # UDC привязан, гаджет сконфигурирован
+	sleep 1   # дать хосту увидеть ttyACM0
+else
+	panel "9999"   # dwc2 так и не пробился за 120 с
 fi
 
 # Shell на USB-serial (если gadget жив): туда же шёл скан
