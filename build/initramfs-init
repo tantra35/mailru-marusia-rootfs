@@ -42,14 +42,15 @@ if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 	mkdir -p "$G/strings/0x409"
 	echo "marusia-scan" > "$G/strings/0x409/product"
 	ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
-	# dwc2/phy могут пробиться с отложенным probe — ждём UDC до 20 с
+	# dwc2/phy могут пробиться с большим запозданием (defprobe) — ждём 120 с
 	udc=''
 	n=0
-	while [ "$n" -lt 20 ]; do
+	while [ "$n" -lt 120 ]; do
 		udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
 		[ -n "$udc" ] && break
 		sleep 1
 		n=$((n + 1))
+		[ $((n % 30)) -eq 0 ] && echo "030$((n / 30))" > /dev/null 2>/dev/null
 	done
 	# маячок-отладка: 1d6b:a113 = /init дошёл до привязки UDC
 	echo 0xa113 > "$G/idProduct"
