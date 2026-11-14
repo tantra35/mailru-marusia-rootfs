@@ -50,6 +50,11 @@ ln -s busybox "$STAGE/bin/sh"
 	echo "dir /bin 0755 0 0"
 	echo "file /bin/busybox $STAGE/bin/busybox 0755 0 0"
 	echo "slink /bin/sh /bin/busybox 0777 0 0"
+	# апплеты, которыми пользуются /init и /scan: без симлинков busybox
+	# их не находит (PATH=/bin), и вся инициализация молча сыпется
+	for a in mount mkdir ls sleep tee head cat sed date grep nanddump uname; do
+		echo "slink /bin/$a /bin/busybox 0777 0 0"
+	done
 	echo "dir /lib 0755 0 0"
 	echo "file /lib/ld-musl-aarch64.so.1 $STAGE/lib/ld-musl-aarch64.so.1 0755 0 0"
 	echo "dir /dev 0755 0 0"
@@ -92,5 +97,5 @@ f.write(bytes(d))
 f.close()
 EOF
 
-cp "$KSRC/arch/arm64/boot/Image" "$B/../../Image-ramrootfs"
-echo "=== ГОТОВО: $B/../../Image-ramrootfs ($(stat -c%s "$B/../../Image-ramrootfs") байт) ==="
+cp "$KSRC/arch/arm64/boot/Image" "$B/../Image-ramrootfs"
+echo "=== ГОТОВО: $B/../Image-ramrootfs ($(stat -c%s "$B/../Image-ramrootfs") байт) ==="
