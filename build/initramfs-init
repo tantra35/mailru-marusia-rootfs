@@ -59,7 +59,22 @@ if mkdir -p "$G/functions/acm.usb0" "$G/configs/c.1" 2>/dev/null; then
 		panel "3333"   # UDC привязан, гаджет сконфигурирован
 		sleep 1   # дать хосту увидеть ttyACM0
 	else
-		panel "9999"   # UDC не найден или биндинг упал
+		# Диагностика на панель (цикл, код читается глазами):
+		#   1-я цифра: драйвер dwc2 зарегистрирован
+		#   2-я: ff400000.usb ПРИВЯЗАН к dwc2 (= probe успешен)
+		#   3-я: драйвер phy-meson8b-usb2 зарегистрирован
+		#   4-я: phy@9020 привязан
+		while :; do
+			c=""
+			[ -d /sys/bus/platform/drivers/dwc2 ] && c="1" || c="0"
+			ls /sys/bus/platform/devices/ff400000.usb/driver >/dev/null 2>&1 &&
+				c="${c}1" || c="${c}0"
+			[ -d /sys/bus/platform/drivers/phy-meson8b-usb2 ] && c="${c}1" || c="${c}0"
+			ls /sys/bus/platform/devices/*9020*/driver >/dev/null 2>&1 &&
+				c="${c}1" || c="${c}0"
+			panel "$c"
+			sleep 2
+		done
 	fi
 fi
 
