@@ -30,12 +30,16 @@ panel() {
 	return 1
 }
 panel "1111"   # /init стартовал, devtmpfs жив
-panel "2222"   # ждём UDC (dwc2 пинается bind'ом)
+panel "2222"   # ждём UDC: dwc2 откладывается на старте (phy не готов) —
+               # в голом initramfs отложенные probe сами не просыпаются,
+               # поэтому принудительно дёргаем drivers_probe каждую секунду
 
 udc=''
 n=0
-while [ "$n" -lt 120 ]; do
-	echo ff400000.usb > /sys/bus/platform/drivers/dwc2/bind 2>/dev/null
+while [ "$n" -lt 300 ]; do
+	# glue (usb-ctrl) должен привязаться раньше своего ребёнка dwc2
+	echo ffe09080.usb > /sys/bus/platform/drivers_probe 2>/dev/null
+	echo ff400000.usb > /sys/bus/platform/drivers_probe 2>/dev/null
 	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
 	[ -n "$udc" ] && break
 	sleep 1
@@ -51,22 +55,13 @@ mkdir -p "$G/strings/0x409"
 echo "marusia-scan" > "$G/strings/0x409/product"
 ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
 
-# g_serial занял только что появившийся UDC — отвязать и занять своим
-for u in /sys/class/udc/*; do
-	[ -e "$u/UDC" ] && echo "" > "$u/UDC" 2>/dev/null
-done
-
 if [ -n "$udc" ] && echo "$udc" > "$G/UDC" 2>/dev/null; then
 	gadget=yes
 	panel "3333"   # UDC привязан, гаджет сконфигурирован
 	sleep 1   # дать хосту увидеть ttyACM0
 else
-	# Диагностика: кольцо printk хранит ВСЁ (консоль могла терять байты).
-	# Показ: 9999 -> число dwc2/usb-строк -> цикл их кодов завершения
-	# (младшие 4 цифры; 0000 = строка без кода). По 1.5 с, по кругу.
-	panel "9999"
-	sleep 2
-	dmesg | grep -iE "dwc2|ff400000|usb-ctrl|usb2-phy|g12a-usb|udc" \
+	panel "8888"   # dwc2 не пробился даже принудительно — смотри /tmp/dlines
+	dmesg | grep -iE "dwc2|ff400000|ffe09080|usb-ctrl|usb2-phy|g12a-usb|deferred|supply" \
 		> /tmp/dlines 2>/dev/null
 	cnt=$(wc -l < /tmp/dlines)
 	panel "9$(printf '%03d' "$cnt")"
@@ -83,7 +78,7 @@ else
 			sleep 1.5
 			i=$((i + 1))
 		done
-		panel "9999"; sleep 2
+		panel "8888"; sleep 2
 	done
 fi
 
