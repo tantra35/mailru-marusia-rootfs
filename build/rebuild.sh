@@ -28,6 +28,17 @@ fi
 # uid/gid ЧИСЛОМ: на хосте нет пользователей платы (pulse/mpd/...), буквенный
 # chown упал бы молча. Числа из /etc/passwd+group платы (Alpine 3.24.1):
 #   chrony 100:101, mpd 103:audio(18), pulse 104:pulse(106), upmpdcli 105:105.
+
+# usr/local = template ЦЕЛИКОМ (то же правило, что в build-rootfs.sh): дерево
+# rootfs/ собирается отдельно и дрейфует (теряет скрипты вроде
+# upmpdcli-volhook, offline-speak; тащит устаревшие bt-pair/net-wifi-watch).
+rm -rf "$B/chroot/tmp/tree/usr/local"
+cp -aT "$B/template/usr/local" "$B/chroot/tmp/tree/usr/local"
+chown -R root:root "$B/chroot/tmp/tree/usr/local"
+# vendor-скрипты обязаны быть исполняемыми (template когда-то собран
+# ubi_reader extract'ом, который теряет биты — бинокль 664 не запустится)
+chmod 755 "$B/chroot/tmp/tree/usr/local/bin/"* "$B/chroot/tmp/tree/usr/local/sbin/"* 2>/dev/null || true
+
 chown -R root:root "$B/chroot/tmp/tree/var"
 chown -R 103:18 "$B/chroot/tmp/tree/var/lib/mpd" "$B/chroot/tmp/tree/var/log/mpd" 2>/dev/null || true
 chown -R 105:105 "$B/chroot/tmp/tree/var/lib/upmpdcli" "$B/chroot/tmp/tree/var/cache/upmpdcli" 2>/dev/null || true
