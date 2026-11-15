@@ -15,6 +15,30 @@ BADPEBS="${BAD_PEB_FILE:-$(cd -- "$B/.." && pwd)/bad-pebs-$BOARD.txt}"
 rm -rf "$B/chroot/tmp/tree"
 cp -a "$B/rootfs" "$B/chroot/tmp/tree"
 
+# iwd-стейт: только root (иначе iwd игнорирует известные сети, psk читает кто попало)
+if [ -d "$B/chroot/tmp/tree/var/lib/iwd" ]; then
+	chown -R root:root "$B/chroot/tmp/tree/var/lib/iwd"
+	chmod 700 "$B/chroot/tmp/tree/var/lib/iwd"
+	chmod 600 "$B/chroot/tmp/tree/var/lib/iwd"/*.psk 2>/dev/null || true
+	chmod 700 "$B/chroot/tmp/tree/var/lib/iwd/hotspot" 2>/dev/null || true
+fi
+
+# Дерево собрано от ruslan (uid 1000) — в образе всё станет 1000:1000, а
+# сервисные демоны пишут в свои каталоги под своими uid. Нормализация.
+# uid/gid ЧИСЛОМ: на хосте нет пользователей платы (pulse/mpd/...), буквенный
+# chown упал бы молча. Числа из /etc/passwd+group платы (Alpine 3.24.1):
+#   chrony 100:101, mpd 103:audio(18), pulse 104:pulse(106), upmpdcli 105:105.
+chown -R root:root "$B/chroot/tmp/tree/var"
+chown -R 103:18 "$B/chroot/tmp/tree/var/lib/mpd" "$B/chroot/tmp/tree/var/log/mpd" 2>/dev/null || true
+chown -R 105:105 "$B/chroot/tmp/tree/var/lib/upmpdcli" "$B/chroot/tmp/tree/var/cache/upmpdcli" 2>/dev/null || true
+chown -R 100:101 "$B/chroot/tmp/tree/var/lib/chrony" 2>/dev/null || true
+chown -R 104:106 "$B/chroot/tmp/tree/var/lib/pulse" 2>/dev/null || true
+mkdir -p "$B/chroot/tmp/tree/var/empty"
+chown root:root "$B/chroot/tmp/tree/var/empty"
+chmod 711 "$B/chroot/tmp/tree/var/empty"
+chown root:shadow "$B/chroot/tmp/tree/etc/shadow" "$B/chroot/tmp/tree/etc/gshadow" 2>/dev/null || true
+chmod 640 "$B/chroot/tmp/tree/etc/shadow" "$B/chroot/tmp/tree/etc/gshadow" 2>/dev/null || true
+
 echo "=== mkfs.ubifs -x zstd ==="
 chroot "$B/chroot" mkfs.ubifs -r /tmp/tree -m 2048 -e 126976 -c 1600 -x zstd -o /tmp/rootfs.ubifs 2>&1 | tail -1
 
