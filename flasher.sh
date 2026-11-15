@@ -31,6 +31,10 @@ BOARDS="${BOARDS:-$(_first flasher_stuff -d)}"
 FW_ALPINE="${FW_ALPINE:-$(_first fw_alpine -d)}"
 IMAGE="${IMAGE:-$HERE/firmware/Image}"                     # ядро/dtb — из git
 DTB="${DTB:-$HERE/firmware/vk-mini-a113x.dtb}"
+# Кастомный образ подхватывается сам, по имени платы (см. set_board), но
+# явная переменная из окружения всегда сильнее дефолта.
+ROOTFS_UBI_FROM_ENV=0
+case ${ROOTFS_UBI+x} in x) ROOTFS_UBI_FROM_ENV=1 ;; esac
 ROOTFS_UBI="${ROOTFS_UBI:-$FW_ALPINE/alpine3.24.1_rootfs.ubi}"
 
 STOCK="${STOCK:-$(_first stock -d)}"
@@ -441,6 +445,18 @@ set_board() {
 	BOARD="$1"
 	BOARDDIR="$BOARDS/$BOARD"
 	mkdir -p "$BOARDDIR/dump"
+
+	# Кастомный образ этой платы, если собран: rebuild.sh с BOARD=<имя>
+	# кладёт build/rootfs-custom-<имя>.ubi. "marusia-" в имени каталога
+	# платы отбрасывается: каталогу marusia-shtab отвечает
+	# rootfs-custom-shtab.ubi. Явная переменная из окружения сильнее.
+	if [ "$ROOTFS_UBI_FROM_ENV" = 0 ]; then
+		local c
+		for c in "$HERE/build/rootfs-custom-$BOARD.ubi" \
+			 "$HERE/build/rootfs-custom-${BOARD#marusia-}.ubi"; do
+			[ -f "$c" ] && { ROOTFS_UBI="$c"; break; }
+		done
+	fi
 
 	# Бэкапы до разделения лежали в dump/, фолбек.
 	STOCK_DUMP="$BOARDDIR/dump/stock"
@@ -1190,8 +1206,23 @@ item_flash() {
 		total=$(( (usize + ERASE_BLOCK - 1) / ERASE_BLOCK ))
 		# Рабочая копия flasher.sh лежит в ~/Загрузки/marusia (файл рядом),
 		# клон репо - на уровень ниже (файл уровнем выше репо).
-		badfile="${BAD_PEB_FILE:-$HERE/bad-pebs-shtab.txt}"
-		[ -f "$badfile" ] || badfile="$HERE/../bad-pebs-shtab.txt"
+		badfile="${BAD_PEB_FILE:-}"
+		if [ -z "$badfile" ]; then
+			# Файл плохих PEB именно этой платы, а не чужой:
+			# bad-pebs-<плата>.txt, префикс "marusia-" у каталога
+			# платы отбрасывается. Захардкоженный shtab - последний
+			# фолбек для совместимости.
+			local stem="${BOARD#marusia-}"
+			for badfile in "$HERE/bad-pebs-$BOARD.txt" \
+				       "$HERE/bad-pebs-$stem.txt" \
+				       "$HERE/../bad-pebs-$BOARD.txt" \
+				       "$HERE/../bad-pebs-$stem.txt" \
+				       "$HERE/bad-pebs-shtab.txt" \
+				       "$HERE/../bad-pebs-shtab.txt"; do
+				[ -f "$badfile" ] && break
+				badfile=""
+			done
+		fi
 		if [ -f "$badfile" ]; then
 			while read -r b; do
 				case "$b" in ''|\#*) continue ;; esac
