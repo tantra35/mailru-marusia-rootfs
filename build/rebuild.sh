@@ -36,7 +36,7 @@ rm -rf "$B/chroot/tmp/tree/usr/local"
 cp -aT "$B/template/usr/local" "$B/chroot/tmp/tree/usr/local"
 chown -R root:root "$B/chroot/tmp/tree/usr/local"
 # vendor-скрипты обязаны быть исполняемыми (template когда-то собран
-# ubi_reader extract'ом, который теряет биты — бинокль 664 не запустится)
+# ubi_reader extract'ом, который теряет биты — бинарь 664 не запустится)
 chmod 755 "$B/chroot/tmp/tree/usr/local/bin/"* "$B/chroot/tmp/tree/usr/local/sbin/"* 2>/dev/null || true
 
 chown -R root:root "$B/chroot/tmp/tree/var"
