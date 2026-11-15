@@ -6,7 +6,7 @@ build/apk-cache/
 build/bad-pebs*.txt
 build/initramfs.cpio
 build/initramfs-scan/
-build/rootfs-custom.ubi
+build/rootfs-custom-*.ubi
 build/rootfs.ubifs
 build/scan-initramfs.cpio.gz
 build/signing/*.rsa
@@ -26,3 +26,6 @@ template/etc/ssh/ssh_host_ecdsa_key
 template/etc/ssh/ssh_host_ed25519_key
 template/etc/ssh/ssh_host_rsa_key
 *.ubi
+build/initramfs-spi/
+build/Image-spi-live
+build/Image-ramrootfs-spi

@@ -107,6 +107,12 @@ ERASE_BLOCK=$((0x20000))
 dry_run=0
 LEAVE=0
 [ "${1:-}" = "--dry-run" ] && dry_run=1
+# Числовой аргумент = авто-выбор пункта меню один раз (для обёрток):
+# ./flasher.sh 5 == открыть меню и сразу выполнить пункт 5.
+AUTO_ITEM=''
+case "${1:-}" in
+	[0-9]*) AUTO_ITEM="$1" ;;
+esac
 
 BOARD="${BOARD:-}"
 BOARDDIR=""
@@ -1385,6 +1391,68 @@ item_recovery() {
 
 # Скан плохих PEB: ядро + initramfs целиком в RAM, NAND только читается.
 # Нужен, когда на плате ещё нет/сломан rootfs и по ssh скан не запустить.
+# RAM: тестовая сборка — загрузить ядро+initramfs из $RECOVERY в ОЗУ и
+# предложить провалиться в консоль платы. Никакого gauge: это не скан.
+item_ram_test() {
+	require_files "Тестовая RAM-сборка" "$RECOVERY" "$DTB" || return
+
+	image_is_adapted "$RECOVERY" || {
+		dialog --msgbox "У $RECOVERY нулевой text_offset." 11 74
+		return
+	}
+
+	mwrite_to_ram "$RECOVERY" "$KERNEL_ADDR" ядро || return
+	mwrite_to_ram "$DTB" "$DTB_ADDR" "дерево устройств" || return
+
+	set_long_var bootargs \
+		"rootfstype=ramfs earlycon=meson,0xff803000 console=ttyGS0,115200 console=ttyAML0,115200n8 rdinit=/init loglevel=3" ||
+		{ dialog --msgbox "Не удалось задать командную строку." 7 45; return; }
+
+	dialog --infobox "Передаю управление ядру..." 5 40
+	aml_raw bulkcmd "booti $KERNEL_ADDR - $DTB_ADDR" >/dev/null 2>&1 || true
+
+	ONLINE=0
+
+	# Ядро в initramfs поднимает USB ACM-gadget: плата появится как ttyACM0.
+	dialog --infobox "Жду USB-serial с платы (до 30 с)..." 5 44
+	local acm=''
+	for _ in $(seq 1 30); do
+		acm=$(ls /dev/ttyACM* 2>/dev/null | head -n 1 || true)
+		[ -n "$acm" ] && break
+		sleep 1
+	done
+
+	if [ -z "$acm" ]; then
+		dialog --title "Тестовая сборка запущена" --msgbox \
+"Ядро загружено в ОЗУ и работает.
+USB-консоль не поднялась (ACM-gadget не завёлся) —
+вывод и шелл идут в UART (ttyAML0), смотри PuTTY." 9 64
+		return
+	fi
+
+	dialog --title "Тестовая сборка запущена" --msgbox \
+"Ядро загружено в ОЗУ, тестовая сборка работает.
+Консоль платы: $acm
+
+OK — провалиться в консоль платы (выход из консоли: Ctrl-C).
+Отмена — вернуться в меню, сборка продолжит работать." 12 64 || return
+
+	stty -F "$acm" 115200 raw -echo 2>/dev/null
+	local rpid=''
+	cat "$acm" & rpid=$!
+	trap 'kill "$rpid" 2>/dev/null' INT
+	while IFS= read -r -s -n 1 ch; do
+		[ "$ch" = "$(printf '\003')" ] && break
+		if [ -z "$ch" ]; then
+			printf '\r' > "$acm"
+		else
+			printf '%s' "$ch" > "$acm"
+		fi
+	done
+	kill "$rpid" 2>/dev/null || true
+	trap - INT
+}
+
 # Вывод через USB-C (ACM-gadget, /dev/ttyACM0), UART - запасной канал.
 # Список сохраняется в bad-pebs-<имя>.txt рядом с flasher.sh.
 item_scan_pebs() {
@@ -1465,8 +1533,10 @@ USB-serial с платы не появился - ACM-gadget не поднялс�
 			waited=$((waited + 1))
 		done
 		echo 100
-	} | dialog --title "Проверка плохих PEB" \
-		--gauge "Идёт проверка bad-блоков флеша: чтение PEB по очереди.\nПрогресс также на панель-часах колонки (номер PEB).\nПо завершении здесь появится итог." 8 62 0
+	} | dialog --title "${RECOVERY_LABEL:-Проверка плохих PEB}" \
+		--gauge "${RECOVERY_GAUGE_TEXT:-Идёт проверка bad-блоков флеша: чтение PEB по очереди.
+Прогресс также на панель-часах колонки (номер PEB).
+По завершении здесь появится итог.}" 8 62 0
 
 	kill "$catpid" 2>/dev/null || true
 
@@ -1818,6 +1888,10 @@ while ! connect; do
 done
 
 while :; do
+	if [ -n "$AUTO_ITEM" ]; then
+		choice="$AUTO_ITEM"
+		AUTO_ITEM=''
+	else
 	choice=$(dialog --title "Прошивальщик VK Mini A113X$([ "$dry_run" = 1 ] && echo ' , СУХОЙ ПРОГОН')" \
 		--no-collapse --cancel-label Выход \
 		--menu "$(header)" 22 74 10 \
@@ -1830,8 +1904,10 @@ while :; do
 		6 "Прошить бекап               стока или альпайна" \
 		7 "Открыть U-Boot шел          на serial" \
 		8 "Перезагрузить плату         и выйти" \
-		9 "Выход                       просто выйти" \
+		9 "RAM: тестовая сборка       ядро в ОЗУ + консоль платы" \
+		10 "Выход                       просто выйти" \
 		3>&1 1>&2 2>&3) || break
+	fi
 
 	case "$choice" in
 	0) item_backup ;;
@@ -1843,7 +1919,8 @@ while :; do
 	6) item_restore_stock ;;
 	7) item_uboot_shell ;;
 	8) item_reboot ;;
-	9) break ;;
+	9) RECOVERY="${RECOVERY:-$HERE/build/Image-ramrootfs-spi}" item_ram_test ;;
+	10) break ;;
 	esac
 
 	[ "$LEAVE" = 1 ] && break

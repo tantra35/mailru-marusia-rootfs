@@ -1,0 +1,145 @@
+#!/bin/sh
+# /init RAM-среды SPI-теста (initramfs целиком в RAM, NAND не трогается).
+# Пролог — тот же, что у сканера PEB (console=gserial, drivers_probe-цикл).
+# Задача: дождаться spidev на spi0.0 и запустить multi-кадровый цикл spi-test
+# БЕЗ rebind — проверка BSP-дисциплины DMA в патченном spi-meson-spicc.
+#
+# КАНАЛЫ ВЫВОДА: bootargs RAM-бута (item_scan_pebs) = console=ttyGS0
+# console=ttyAML0 (ttyAML0 последняя => /dev/console идёт в UART!). Поэтому
+# всё важное пишем руками в /dev/console (UART) И /dev/ttyGS0 (USB-C на хост).
+# Финальная строка "# === 8< === END bad-pebs 8< ===" — маркер gauge'а
+# item_scan_pebs: flasher закрывает диалог по нему (иначе ждёт 20 минут).
+
+PATH=/bin
+umask 022
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev || mdev -s
+# loglevel=7 из bootargs заливает буфер ttyGS0 (gserial теряет байты пачками,
+# ловлено: [missed 4245 bytes] именно на строках диагностики SPI) — тихим
+# ядро сразу, диагностику гоним сами
+echo 3 > /proc/sys/kernel/printk 2>/dev/null
+
+panel() {
+	for d in /sys/bus/platform/devices/*/linedisp.* /sys/class/linedisp/*; do
+		[ -e "$d/message" ] && { echo "$1" > "$d/message" 2>/dev/null; return 0; }
+	done
+	return 1
+}
+
+# сообщение в оба канала (UART + USB-C, если гаджет уже поднялся)
+out() {
+	echo "$@" > /dev/console
+	[ -e /dev/ttyGS0 ] && echo "$@" > /dev/ttyGS0 2>/dev/null
+	return 0
+}
+
+panel "1111"   # /init стартовал, devtmpfs жив
+
+out ""
+out "### spi-test initrd: система в RAM, NAND только читается"
+out "### вывод: UART и USB-C (/dev/ttyACM0 на хосте)"
+
+# dwc2 может уйти в deferred probe — пинаем drivers_probe, пока не поднимется
+# UDC (консоль USB-C). Лимит 30 с: SPI-тесту гаджет не нужен, только вывод.
+panel "2222"
+n=0
+while [ "$n" -lt 30 ]; do
+	echo ffe09080.usb > /sys/bus/platform/drivers_probe 2>/dev/null
+	echo ff400000.usb > /sys/bus/platform/drivers_probe 2>/dev/null
+	ls /sys/class/udc 2>/dev/null | grep -q . && break
+	sleep 1
+	n=$((n + 1))
+	panel "22$(printf '%02d' $n)"
+done
+
+# Ждём контроллер spi@13000: драйвер meson-spicc должен привязаться к узлу DT
+n=0
+while [ "$n" -lt 30 ]; do
+	[ -e /sys/bus/platform/devices/ffd13000.spi/driver ] && break
+	sleep 1
+	n=$((n + 1))
+done
+
+# диагностика: что на шине spi и что ядро говорило о spicc/spidev
+spi_diag() {
+	out "--- SPI DIAG ---"
+	out "spi devices: $(ls /sys/bus/spi/devices/ 2>/dev/null)"
+	out "spi drivers: $(ls /sys/bus/spi/drivers/ 2>/dev/null)"
+	for d in /sys/bus/spi/devices/*; do
+		out "$d driver: $(ls -l "$d/driver" 2>&1 | sed 's/.*spi0.0/driver ->/')"
+	done
+	dmesg 2>/dev/null | grep -iE 'spicc|spidev|spi0|13000' | tail -n 40 |
+		while IFS= read -r l; do out "$l"; done
+}
+
+fatal() {
+	panel "$1"
+	out "### $2"
+	spi_diag
+	# маркер gauge'а item_scan_pebs — flasher закрывает диалог и по фейлу
+	out "# === 8< === END bad-pebs 8< ==="
+	out "### Shell. Выключить: poweroff -f"
+	mkdir -p /dev/pts
+	mount -t devpts devpts /dev/pts 2>/dev/null
+	# Shell по умолчанию слушает /dev/console = UART (ttyAML0 последний
+	# console=). Если UART не распаян (nastia) — шелл глух; когда gserial
+	# жив, сажаем шелл на ttyGS0: хост может дёргать диагностику по USB-C.
+	if [ -e /dev/ttyGS0 ]; then
+		out "### интерактивный shell: USB-C (/dev/ttyACM0 на хосте)"
+		exec sh < /dev/ttyGS0 > /dev/ttyGS0 2>&1
+	fi
+	exec sh
+}
+
+[ -e /sys/bus/platform/devices/ffd13000.spi/driver ] || {
+	fatal "8811" "FATAL: meson-spicc не привязался к ffd13000.spi"
+}
+
+# spidev должен привязаться к дочернему устройству (compatible rohm,dh2228fv
+# в OF-таблице spidev). driver — СИМЛИНК: проверять readlink'ом, ls каталога
+# покажет содержимое (bind/unbind/uevent) без слова spidev.
+if ! readlink /sys/bus/spi/devices/spi0.0/driver 2>/dev/null | grep -q spidev; then
+	out "### spidev не привязался сам, bind руками"
+	[ -d /sys/bus/spi/drivers/spidev ] ||
+		out "### /sys/bus/spi/drivers/spidev ОТСУТСТВУЕТ — драйвер не зарегистрирован"
+	err=$(echo spi0.0 > /sys/bus/spi/drivers/spidev/bind 2>&1)
+	[ -n "$err" ] && out "bind error: $err"
+	sleep 1
+fi
+if ! readlink /sys/bus/spi/devices/spi0.0/driver 2>/dev/null | grep -q spidev; then
+	fatal "8822" "FATAL: spidev не привязался к spi0.0"
+fi
+
+# devtmpfs создаёт узел сам; если нет — mknod (spidev major 153)
+[ -e /dev/spidev0.0 ] || mknod /dev/spidev0.0 c 153 0
+
+panel "3333"   # SPI готов, запускаем тест
+DUR="${SPI_TEST_DUR:-30}"
+out "### запускаю: spi-test -mode cycle -rebind none -dur $DUR"
+out "### кольцо должно циклить красный->зелёный->синий НЕПРЕРЫВНО;"
+out "### если сменился только первый кадр — патч не сработал"
+
+(
+	n=0
+	while :; do
+		sleep 10
+		n=$((n + 10))
+		panel "33$(printf '%02d' $((n / 30 % 100)))"
+	done
+) &
+PANEL_PID=$!
+
+/bin/spi-test -mode cycle -rebind none -bits 64 -dur "$DUR" 2>&1 |
+	tee /dev/console /dev/ttyGS0 > /dev/null
+
+kill "$PANEL_PID" 2>/dev/null
+panel "3444"
+out "### тест завершился. Кольцо циклило непрерывно? (да = BSP-дисциплина живёт)"
+# маркер gauge'а item_scan_pebs — flasher закрывает диалог по нему
+out "# === 8< === END bad-pebs 8< ==="
+out "### Shell на консоли. Выключить: poweroff -f"
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts 2>/dev/null
+exec sh

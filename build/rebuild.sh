@@ -9,7 +9,8 @@
 # flasher.sh по тому же файлу (та же BAD_PEB_FILE) строит сегментную запись с разрывами.
 set -euo pipefail
 B=/home/ruslan/Загрузки/marusia/build-rootfs
-BADPEBS="${BAD_PEB_FILE:-$(cd -- "$B/.." && pwd)/bad-pebs-shtab.txt}"
+BOARD="${BOARD:-shtab}" # платно-специфичный образ: bad-PEB и суффикс имени
+BADPEBS="${BAD_PEB_FILE:-$(cd -- "$B/.." && pwd)/bad-pebs-$BOARD.txt}"
 
 rm -rf "$B/chroot/tmp/tree"
 cp -a "$B/rootfs" "$B/chroot/tmp/tree"
@@ -30,11 +31,11 @@ INI
 
 echo "=== ubinize ==="
 chroot "$B/chroot" ubinize -o /tmp/rootfs-new.ubi -m 2048 -p 131072 /tmp/ubinize.ini 2>&1 | tail -1
-cp "$B/chroot/tmp/rootfs-new.ubi" "$B/build/rootfs-custom.ubi"
+cp "$B/chroot/tmp/rootfs-new.ubi" "$B/build/rootfs-custom-$BOARD.ubi"
 
 echo "=== обход плохих PEB ($BADPEBS) ==="
 if [ -s "$BADPEBS" ]; then
-python3 - "$B/build/rootfs-custom.ubi" "$BADPEBS" <<'PYEOF'
+python3 - "$B/build/rootfs-custom-$BOARD.ubi" "$BADPEBS" <<'PYEOF'
 import sys, struct, zlib
 PEB = 131072
 p, badf = sys.argv[1], sys.argv[2]
@@ -77,6 +78,6 @@ else
 echo "список пуст или отсутствует - собираю образ без дыр"
 fi
 
-chown ruslan:ruslan "$B/build/rootfs-custom.ubi"
-echo "=== ГОТОВО: $B/build/rootfs-custom.ubi ==="
-ls -la "$B/build/rootfs-custom.ubi"
+chown ruslan:ruslan "$B/build/rootfs-custom-$BOARD.ubi"
+echo "=== ГОТОВО: $B/build/rootfs-custom-$BOARD.ubi ==="
+ls -la "$B/build/rootfs-custom-$BOARD.ubi"
