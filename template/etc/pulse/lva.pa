@@ -9,7 +9,11 @@
 # device-restore СТРОГО ПЕРВЫМ: восстанавливает громкости при СОЗДАНИИ sink'а.
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
-load-module module-alsa-source device=micboost
+# control="Mic Boost": PA громкость сырого источника привязана к ALSA softvol
+# Mic Boost (numid=14) — единая точка управления гейном мика = PA, персист в
+# device-volumes.tdb. Якоря (live 2026-11-15): PA 22% ≈ 0 дБ (элемент 13),
+# PA 25% = +3.25 дБ; выше ~30% элемент быстро уходит к потолку +40 дБ (клиппинг).
+load-module module-alsa-source device=micboost control="Mic Boost"
 
 # AEC — вычитает эхо собственного динамика из микрофона: без него wake word не
 # слышит голос под музыкой. Обработка сигнала (авто-громкость/шумодав) ВЫКЛЮЧЕНА —
