@@ -1,10 +1,11 @@
 # mailru-marusia-rootfs
 
-Воспроизводимая сборка Alpine Linux rootfs для **VK Capsula Mini (Mail.ru Маруся)** на Amlogic A113X — с полностью сетевым аудио: микрофон и динамик колонки доступны по TCP 4713 (PulseAudio), DLNA-рендерер «Marusia», mpd + upmpdcli, sshd.
+Воспроизводимая сборка Alpine Linux rootfs для **VK Capsula Mini (Mail.ru Маруся)** на Amlogic A113X — с полностью сетевым аудио: микрофон и динамик колонки доступны по TCP 4713 (PulseAudio), DLNA-рендерер «Marusia», mpd + upmpdcli, Spotify Connect (spotifyd), sshd.
 
 ```
 NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофон PDM + динамик
 телефон ───────DLNA──> «Marusia» (upmpdcli) → mpd (:6600) → PulseAudio
+телефон ───Spotify Connect──> spotifyd → PulseAudio
 ```
 
 ## Железо
@@ -12,7 +13,7 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 - Amlogic A113X (4× Cortex-A53 @ 1.2 ГГц), 256 МиБ DDR3
 - NAND Toshiba TC58NVG1S3HBAI4, 256 МиБ (PEB 128 КиБ, LEB 124 КиБ)
 - WiFi/BT `aml_w1` (SDIO), PDM-микрофоны (2 живых канала), усилитель NTP8910A, светодиодное кольцо, тач-панель
-- Serial console: `ttyAML0` 115200 (root/1)
+- Serial console: `ttyAML0` 115200
 
 ## Что внутри rootfs
 
@@ -20,8 +21,10 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 - **PulseAudio 17.0** (своя сборка, system-mode): unix-сокет для локальных клиентов + **TCP 4713** (ACL: LAN) — микрофон и динамик колонки доступны по сети
 - **mpd 0.24.15** (своя сборка, вывод через PulseAudio) — порт 6600
 - **upmpdcli 1.9.17** — DLNA-рендерер «Marusia» (только рендерер, `openhome=0`)
+- **spotifyd 0.4.2** (Alpine community, pulseaudio-бэкенд) — Spotify Connect, авторизация через zeroconf: телефон видит колонку прямо в приложении Spotify, логин/пароль не нужны
+- `/lib/firmware/eq_8918.bin` — калибровка усилителя NTP8910/8918 (из расшифрованного вендор-ядра); **без неё усилитель молчит** — драйвер NTP8918 подгружает её при первом открытии PCM
 - 59 стоковых звуков в `/etc/sounds` (проигрываются `paplay`)
-- sshd (root/1), iwd (WiFi-конфиг сохраняется в образе), bluetooth + bluealsa
+- sshd, iwd + `net-wifi-wait` (после ассоциации поднимает DHCP `udhcpc` — как в авторском `wifi-connect-iwd`), bluetooth + bluealsa
 - НЕТ: pipewire, espeak, mpg123 CLI, mesa, ffmpeg
 
 ## Структура репозитория
@@ -32,6 +35,7 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 | `rootfs/etc/apk/world` | Список пакетов (мир) для apk-init |
 | `build/rebuild.sh` | Сборка `.ubi` из дерева + обход плохих PEB (`$BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt`) |
 | `build/add-mpd.sh` | Установка mpd+upmpdcli в дерево, конфиги, группы |
+| `build/add-spotifyd.sh` | Установка spotifyd (Spotify Connect) в дерево: пакет, юзер, pulse-access, init.d + рунлевел |
 | `build/bootstrap-chroot.sh` / `finish-chroot.sh` | Развёртывание chroot-сборщика под qemu-aarch64 |
 | `build/simple-image.sh` | Упрощённая упаковка (без обхода bad PEB) |
 | `build/custom-repo/aarch64/*.apk` | Наши пакеты: pulseaudio-r100, mpd-r100, gl-stub |
@@ -86,7 +90,7 @@ sudo ./build/add-mpd.sh
 sudo ./build/rebuild.sh
 ```
 
-Результат: `build-rootfs/build/rootfs-custom.ubi` (~103 МиБ).
+Результат: `build/rootfs-custom-<BOARD>.ubi` (`BOARD` по умолчанию `shtab`, ~106 МиБ; для другой платы — `BOARD=nova sudo bash build/rebuild.sh`).
 
 ### Откуда берутся кастомные пакеты
 
@@ -110,7 +114,7 @@ NAND-память колонки может содержать **плохие б
 ./flasher.sh   # пункт 3 меню
 ```
 
-`flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt` уровнем выше репо).
+`flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt` уровнем выше репо). Какой образ шить и какой bad-файл брать, flasher определяет по выбранной плате сам: `build/rootfs-custom-<плата>.ubi` (префикс `marusia-` у каталога платы из `flasher_stuff/` отбрасывается); явные `ROOTFS_UBI`/`BAD_PEB_FILE` из окружения сильнее автоопределения. Обёртки `flash-custom-root-*.sh` — просто способ передать эти пути через окружение (**обязательно `export`**: неэкспортированная переменная умирает на `exec` и флешер молча возьмёт стоковый образ).
 
 **Как снять список плохих PEB с конкретной платы** — `build/scan-bad-pebs`, две роли:
 
@@ -131,14 +135,17 @@ BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt ./flasher.sh
 ```
 По умолчанию оба берут `bad-pebs-shtab.txt` уровнем выше репо (штабовая колонка); эти файлы — частная история плат, в git не входят. Пустой/отсутствующий файл = образ без дыр.
 
-После первой загрузки:
-1. WiFi: `wifi-connect-iwd` (в этом образе PSK уже вшит — подключится сам)
-2. `ssh root@<IP>` (пароль `1`) — всё уже работает
+После первой загрузки всё поднимается само (порядок: `iwd` → `net-wait`, он же поднимает `udhcpc` → `alsa` (restore микшера) → `pulseaudio` → `mpd` → `upmpdcli` → `marusia-d` → `sshd`):
+1. WiFi: PSK уже вшит в `/var/lib/iwd` — подключится сам, адрес придёт по DHCP
+2. `ssh root@<IP>` — пароль в `shtab-private/shadow` (в публичном README не публикуется)
+3. Spotify Connect: телефон → приложение Spotify → «Devices» → колонка
 
 ## Известные особенности
 
-- **Порядок старта и сеть**: `net-wait` блокирует запуск `upmpdcli`/`mpd`/`pulseaudio`/`sshd` до появления IPv4 на wlan0 (iwd подключается асинхронно) — сервисы всегда стартуют с уже готовой сетью. Ограничение: если WiFi пропадёт уже во время работы, SSDP-анонсы upmpdcli не возобновятся автоматически — на этот случай планируется хук в `marusia-d` (рестарт upmpdcli по netlink-событию). Ручное лечение: `rc-service upmpdcli restart`.
+- **Порядок старта и сеть**: `net-wait` поднимает DHCP (`udhcpc`, как в авторском `wifi-connect-iwd`) и блокирует запуск `upmpdcli`/`mpd`/`pulseaudio`/`sshd` до появления IPv4 на wlan0. Если WiFi пропадёт уже во время работы, SSDP-анонсы upmpdcli возобновляет `net-watch` (рестарт upmpdcli по появлению адреса, `ip monitor`); ручное лечение: `rc-service upmpdcli restart`.
+- **Микшер при загрузке**: `alsa`-сервис восстанавливает `/var/lib/alsa/asound.state` (`alsactl restore`) — в т.ч. маршрут `FRDDR_A SINK SEL = OUT 2` на усилитель. Каталог должен принадлежать root (rebuild.sh нормализует), иначе restore не применится и звука не будет.
 - Полная перепрошивка стирает `/var/lib/iwd`, но PSK-файл вшит в образ — WiFi автоподключается при первом буте.
+- **Владельцы /var**: `rebuild.sh` выставляет сервисные uid/gid числами (pulse 104:106, mpd 103:18, upmpdcli 105:105, chrony 100:101, `/var/empty` root 711) — дерево собирается от uid 1000, и без нормализации демоны падают на правах доступа (pulseaudio — на tdb-базах, sshd — на `/var/empty`).
 - `mkfs.ubifs` собирается **без** `-F` (SPACE_FIXUP): флешер стирает весь регион перед записью, fixup-бурст на деградировавшем NAND опасен (приводил к коррупции индекса /usr/lib).
 - Вход горячий: PDM пишет с пиком ~44%; для LVA при необходимости `pactl set-source-volume alsa_input.hw_0_1 80%`.
 - `hw:0,2` (второй capture-линк) — не подключён (RMS 0), рабочие микрофоны только на `hw:0,1`.
