@@ -1,0 +1,53 @@
+# Maintainer: Clayton Craft <clayton@craftyguy.net>
+# VK Mini fork: pkgrel=101 (v2 порогов: enr 3.0/trigger 4/hold 150 + nearend_tuning 3.0/4.0) — наш репозиторий перекрывает апстрим 1.3-r3.
+# Патч aec3-nearend-thresholds.patch: ослабляет пороги nearend-детектора AEC3
+# (suppression_gain.cc:196 — в nearend-состоянии suppressor почти прозрачен).
+# Диагноз 2026-11-17: при громком воспроизведении остаточное эхо выше речи,
+# детектор с enr_threshold=.25 (нужно ne ≥ 4× остатка) никогда не срабатывал,
+# suppressor давил ВСЁ (речь в выходе AEC ~-50 дБFS). enr_threshold=1.0 →
+# триггер при ne ≥ остатка; trigger 8 кадров быстрее, hold 75 (~1.2 с) держит
+# открытым между словами. Обоснование и замеры: skill marusia,
+# references/mic-array.md, раздел «Диагностика AEC3».
+pkgname=webrtc-audio-processing-1
+pkgver=1.3
+pkgrel=101
+pkgdesc="AudioProcessing module from the WebRTC project (VK Mini: AEC3 nearend thresholds relaxed)"
+url="https://www.freedesktop.org/software/pulseaudio/webrtc-audio-processing/"
+# does not support big endian
+arch="all !s390x"
+license="custom"
+makedepends="
+	abseil-cpp-dev
+	meson
+	cmake
+	libtool
+	linux-headers
+	"
+subpackages="$pkgname-dev"
+source="
+	https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing/-/archive/v$pkgver/webrtc-audio-processing-v$pkgver.tar.gz
+	0001-rtc_base-Include-stdint.h-to-fix-build-failures.patch
+	byte-order-detection.patch
+	gcc-15.patch
+	aec3-nearend-thresholds.patch
+	"
+options="!check" # No tests
+builddir="$srcdir/webrtc-audio-processing-v$pkgver"
+
+build() {
+	abuild-meson \
+		. output
+	meson compile -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install -C output
+}
+
+sha512sums="
+addd6feb5f46f958786b0befadbafe1247737a5cd002a631d9fb2c85fd121959287079148a73f3a20f2b594b288cd5697ab28f4063a4d421fbee9ed2f1ea2117  webrtc-audio-processing-v1.3.tar.gz
+a0150577f1508cbc115d661b9cb74dac046afd8baecb3ca37b47601ccfe81693eb373262711467fc411970404717c9982319dfb70904d0fe30d46ff8de443210  0001-rtc_base-Include-stdint.h-to-fix-build-failures.patch
+651492918e59bff0e4dd7707d55a901d10ff7fd37152c1ff1e5ce6639c800d0f87fd10c5cc354cc930e418136ab8228c188ef183010adc3c7be9c27d32a1903f  byte-order-detection.patch
+4edc6626a1cda4447bf4f1e749355a1df71b9947930ba049598b8ff646956a4b743460c18e2fe3098d2e08b0b64d2fcf4f4397b4eb358b80157ffcee766ec616  gcc-15.patch
+6e17e84686a9ac85f88727ecccae1b7613bd1fb433378ddbfe5912c9873da802386b2b8777437fe01a88360461507fbd39b4fcc1608feacdc95158dee5cc4443  aec3-nearend-thresholds.patch
+"

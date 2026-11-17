@@ -173,6 +173,18 @@ cmd_apk_build() {
 				"$BUILD"/custom-repo/aarch64/mpd-openrc-*.apk
 	fi
 
+	# webrtc-audio-processing-1 r101: патченные пороги nearend-детектора AEC3 —
+	# suppressor не глотает речь под громкой музыкой (диагноз и замеры:
+	# skills/software-development/marusia/references/mic-array.md, «Диагностика AEC3»).
+	# Апгрейд поверх 1.3-r3 из мира; откат — apk из build/apk-cache.
+	if ls "$BUILD"/custom-repo/aarch64/webrtc-audio-processing-1-1*.apk >/dev/null 2>&1; then
+		echo "апгрейд webrtc-audio-processing-1 (патч AEC3)..."
+		"$BUILD/sbin/apk.static" --root "$ROOTFS_APK" --arch aarch64 --allow-untrusted \
+			--keys-dir "$BUILD/apk-keys" --repositories-file "$BUILD/repositories.txt" \
+			--cache-dir "$BUILD/apk-cache" --no-progress \
+			add "$BUILD"/custom-repo/aarch64/webrtc-audio-processing-1-1*.apk
+	fi
+
 	echo "накатываю шаблон..."
 	overlay_template
 
