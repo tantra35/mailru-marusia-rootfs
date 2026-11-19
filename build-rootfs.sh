@@ -162,15 +162,7 @@ cmd_apk_build() {
 	# Кастомные apks (pipewire r101) больше не ставятся: выбран pulseaudio
 	# вместо pipewire-стека. custom-repo/ оставлен как архив и задел.
 
-	# mpd + upmpdcli: DLNA-рендерер (mpd собран С ffmpeg-lite: аудио-декодеры
-	# m4a/aac/alac/mp3/flac/vorbis/opus — см. build/apkbuild/ffmpeg/APKBUILD)
-	if ls "$BUILD"/custom-repo/aarch64/ffmpeg-lite-*.apk >/dev/null 2>&1; then
-		echo "ставлю ffmpeg-lite (аудио-библиотеки для mpd)..."
-		"$BUILD/sbin/apk.static" --root "$ROOTFS_APK" --arch aarch64 --allow-untrusted \
-			--keys-dir "$BUILD/apk-keys" --repositories-file "$BUILD/repositories.txt" \
-			--cache-dir "$BUILD/apk-cache" --no-progress --no-scripts \
-			add "$BUILD"/custom-repo/aarch64/ffmpeg-lite-*.apk
-	fi
+	# mpd + upmpdcli: DLNA-рендерер (mpd собран без ffmpeg, выход -> pulse tcp:4713)
 	if ls "$BUILD"/custom-repo/aarch64/mpd-0*.apk >/dev/null 2>&1; then
 		echo "ставлю mpd..."
 		"$BUILD/sbin/apk.static" --root "$ROOTFS_APK" --arch aarch64 --allow-untrusted \
