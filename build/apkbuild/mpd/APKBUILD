@@ -17,7 +17,8 @@ pkggroups="mpd audio"
 arch="all"
 license="GPL-2.0-or-later"
 makedepends="
-	alsa-lib-dev
+ffmpeg-lite-dev
+alsa-lib-dev
 	avahi-dev
 	curl-dev
 	expat-dev
@@ -41,6 +42,7 @@ makedepends="
 	wavpack-dev
 	"
 options="!check !strip"
+depends="ffmpeg-lite"
 install="$pkgname.pre-install"
 subpackages="$pkgname-openrc"
 source="https://www.musicpd.org/download/mpd/$_branch/mpd-$pkgver.tar.xz
@@ -62,7 +64,7 @@ build() {
 		-Dmodplug=disabled \
 		-Dnfs=disabled \
 		-Dsmbclient=disabled \
-		-Dffmpeg=disabled \
+		-Dffmpeg=enabled \
 		-Dlibmpdclient=disabled \
 		-Dcdio_paranoia=disabled \
 		-Dzeroconf=avahi \
