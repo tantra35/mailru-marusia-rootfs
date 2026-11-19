@@ -1,0 +1,96 @@
+# ffmpeg-lite: только аудио-декодеры для mpd (m4a/AAC, ALAC, mp3, flac,
+# vorbis, opus, wma, ape, dsd, wav/ADTS). Нативные декодеры ffmpeg —
+# НИКАКИХ внешних кодек-библиотек (в отличие от апстримного ffmpeg,
+# closure которого ~111 МиБ). Бинарных программ, avdevice/avfilter/
+# swscale/postproc/сети/энкодеров нет — только libavcodec+libavformat+libavutil.
+# Contributor: Leo <thinkabit.ukim@gmail.com> et al. (апстрим как основа)
+pkgname=ffmpeg-lite
+pkgver=8.1.3
+pkgrel=100
+pkgdesc="Audio-only FFmpeg libraries for MPD (no video codecs, no programs)"
+url="https://ffmpeg.org/"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends=""
+options="!check !strip"
+builddir="$srcdir/ffmpeg-$pkgver"
+subpackages="$pkgname-dev"
+source="https://ffmpeg.org/releases/ffmpeg-$pkgver.tar.xz
+	posix-ioctl.patch
+	"
+
+build() {
+	./configure \
+		--prefix=/usr \
+		--disable-everything \
+		--enable-avcodec \
+		--enable-avformat \
+		--enable-avutil \
+		--disable-avdevice \
+		--disable-avfilter \
+		--disable-swscale \
+		--disable-swresample \
+		--disable-programs \
+		--disable-doc \
+		--disable-network \
+		--disable-autodetect \
+		--disable-encoders \
+		--disable-muxers \
+		--disable-devices \
+		--disable-indevs \
+		--disable-outdevs \
+		--disable-hwaccels \
+		--disable-lzma \
+		--disable-bzlib \
+		--disable-zlib \
+		--disable-iconv \
+		--disable-debug \
+		--disable-static \
+		--enable-shared \
+		--enable-pic \
+		--enable-pthreads \
+		--optflags="-Os" \
+		--enable-decoder='aac' \
+		--enable-decoder='aac_latm' \
+		--enable-decoder='alac' \
+		--enable-decoder='ape' \
+		--enable-decoder='flac' \
+		--enable-decoder='mp3*' \
+		--enable-decoder='mp2' \
+		--enable-decoder='vorbis' \
+		--enable-decoder='opus' \
+		--enable-decoder='pcm_*' \
+		--enable-decoder='dsd_*' \
+		--enable-decoder='wavpack' \
+		--enable-decoder='wmav1' \
+		--enable-decoder='wmav2' \
+		--enable-demuxer='aac' \
+		--enable-demuxer='ape' \
+		--enable-demuxer='asf' \
+		--enable-demuxer='dsf' \
+		--enable-demuxer='dsdiff' \
+		--enable-demuxer='flac' \
+		--enable-demuxer='mov' \
+		--enable-demuxer='mp3' \
+		--enable-demuxer='ogg' \
+		--enable-demuxer='opus' \
+		--enable-demuxer='wav' \
+		--enable-demuxer='wv' \
+		--enable-parser='aac' \
+		--enable-parser='aac_latm' \
+		--enable-parser='flac' \
+		--enable-parser='mpegaudio' \
+		--enable-parser='opus' \
+		--enable-parser='vorbis' \
+		--enable-protocol='file'
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+acc7dbacde58c91bbc4a86fa589d317515d40bc9bc1ca5f9c020034bb54bf3c8cd61ed70ce437b962bd50332ea8378b3ad52da1942cfdb29e380c33a90d2f0c1  ffmpeg-8.1.3.tar.xz
+790b3ea796855f0572531eec8bb436f8ae2b894e29ea7fa2bf7fcddbbc1a58da5c403b366bc116729b92da54ca6d74c82df3bb71c5069e41ae8540a38f7151ae  posix-ioctl.patch
+"
