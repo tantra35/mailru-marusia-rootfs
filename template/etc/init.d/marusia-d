@@ -6,7 +6,7 @@ command="/usr/local/bin/marusia-d"
 # LVA — ws-клиент). Дефолт :6055, пусто = выключить peripheral API.
 # Кольцо: собственный SPI-транспорт (rebind+кадр через /dev/spidev0.0),
 # ringled не используется.
-command_args="-mpd 127.0.0.1:6600"
+command_args="-mpd 127.0.0.1:6601"
 command_background="yes"
 pidfile="/run/marusia-d.pid"
 start_stop_daemon_args="--make-pidfile"
