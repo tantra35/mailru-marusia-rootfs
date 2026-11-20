@@ -1,5 +1,5 @@
 # Maintainer: Clayton Craft <clayton@craftyguy.net>
-# VK Mini fork: pkgrel=101 (v2 порогов: enr 3.0/trigger 4/hold 150 + nearend_tuning 3.0/4.0) — наш репозиторий перекрывает апстрим 1.3-r3.
+# VK Mini fork: pkgrel=102 (v3 порогов: enr 3.0/trigger 4/hold 250 + nearend_tuning 3.0/4.0 + normal dec 0.5) — наш репозиторий перекрывает апстрим 1.3-r3.
 # Патч aec3-nearend-thresholds.patch: ослабляет пороги nearend-детектора AEC3
 # (suppression_gain.cc:196 — в nearend-состоянии suppressor почти прозрачен).
 # Диагноз 2026-11-17: при громком воспроизведении остаточное эхо выше речи,
@@ -10,7 +10,7 @@
 # references/mic-array.md, раздел «Диагностика AEC3».
 pkgname=webrtc-audio-processing-1
 pkgver=1.3
-pkgrel=101
+pkgrel=102
 pkgdesc="AudioProcessing module from the WebRTC project (VK Mini: AEC3 nearend thresholds relaxed)"
 url="https://www.freedesktop.org/software/pulseaudio/webrtc-audio-processing/"
 # does not support big endian
@@ -49,5 +49,5 @@ addd6feb5f46f958786b0befadbafe1247737a5cd002a631d9fb2c85fd121959287079148a73f3a2
 a0150577f1508cbc115d661b9cb74dac046afd8baecb3ca37b47601ccfe81693eb373262711467fc411970404717c9982319dfb70904d0fe30d46ff8de443210  0001-rtc_base-Include-stdint.h-to-fix-build-failures.patch
 651492918e59bff0e4dd7707d55a901d10ff7fd37152c1ff1e5ce6639c800d0f87fd10c5cc354cc930e418136ab8228c188ef183010adc3c7be9c27d32a1903f  byte-order-detection.patch
 4edc6626a1cda4447bf4f1e749355a1df71b9947930ba049598b8ff646956a4b743460c18e2fe3098d2e08b0b64d2fcf4f4397b4eb358b80157ffcee766ec616  gcc-15.patch
-6e17e84686a9ac85f88727ecccae1b7613bd1fb433378ddbfe5912c9873da802386b2b8777437fe01a88360461507fbd39b4fcc1608feacdc95158dee5cc4443  aec3-nearend-thresholds.patch
+81ae38ab4ca4af2308f1409969a2e77ceedc63c3ad1696cf6001b0aea52d80fe8f12f36f23fe66b17eea22428c5bf5e8b1a25d4d5c3b589140ef42c573165e71  aec3-nearend-thresholds.patch
 "

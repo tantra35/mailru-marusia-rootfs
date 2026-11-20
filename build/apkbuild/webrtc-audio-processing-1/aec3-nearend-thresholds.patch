@@ -1,11 +1,13 @@
 --- a/webrtc/api/audio/echo_canceller3_config.h
 +++ b/webrtc/api/audio/echo_canceller3_config.h
-@@ -185,17 +185,17 @@
+@@ -184,18 +184,18 @@
+     Tuning normal_tuning = Tuning(MaskingThresholds(.3f, .4f, .3f),
                                    MaskingThresholds(.07f, .1f, .3f),
                                    2.0f,
-                                   0.25f);
+-                                  0.25f);
 -    Tuning nearend_tuning = Tuning(MaskingThresholds(1.09f, 1.1f, .3f),
 -                                   MaskingThresholds(.1f, .3f, .3f),
++                                  0.5f);
 +    Tuning nearend_tuning = Tuning(MaskingThresholds(3.0f, 4.0f, .3f),
 +                                   MaskingThresholds(2.0f, 3.0f, .3f),
                                     2.0f,
@@ -18,7 +20,7 @@
        float snr_threshold = 30.f;
 -      int hold_duration = 50;
 -      int trigger_threshold = 12;
-+      int hold_duration = 150;
++      int hold_duration = 250;
 +      int trigger_threshold = 4;
        bool use_during_initial_phase = true;
      } dominant_nearend_detection;
