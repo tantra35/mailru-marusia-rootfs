@@ -1,0 +1,21 @@
+# ALSA PCM effect plugins: extra audio processing chain for the voice tract.
+# Бинарник (musl aarch64) кладётся рядом с APKBUILD оператором вручную.
+pkgname=alsa-fx
+pkgver=1.0
+pkgrel=0
+pkgdesc="ALSA PCM effect plugins"
+url="https://localhost/"
+arch="aarch64"
+license="Custom"
+depends="alsa-lib libstdc++ fftw-single-libs"
+source="libasound_module_pcm_single_plugin.so"
+options="!check"
+
+package() {
+	install -Dm755 "$srcdir"/libasound_module_pcm_single_plugin.so \
+		"$pkgdir"/usr/lib/alsa-lib/libasound_module_pcm_single_plugin.so
+}
+
+sha512sums="
+	f97dfa5c5eff7a10d0a446312c9f12c395f571d7cf820815e21c0182af19a23ee51e3261bc8f8a63245c84ff15f3b317d4d7c4207ac20b1d315782926f70b8d1  libasound_module_pcm_single_plugin.so
+"

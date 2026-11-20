@@ -29,3 +29,6 @@ template/etc/ssh/ssh_host_rsa_key
 build/initramfs-spi/
 build/Image-spi-live
 build/Image-ramrootfs-spi
+# staged binary
+build/apkbuild/alsa-fx/*.so
+build/custom-repo/aarch64/alsa-fx-*.apk

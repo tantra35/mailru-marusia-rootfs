@@ -193,6 +193,16 @@ cmd_apk_build() {
 			add "$BUILD"/custom-repo/aarch64/webrtc-audio-processing-1-1*.apk
 	fi
 
+	# alsa-fx: PCM-фильтры тракта ассистента (см. template/etc/asound.conf и
+	# template/etc/pulse/lva.pa).
+	if ls "$BUILD"/custom-repo/aarch64/alsa-fx-*.apk >/dev/null 2>&1; then
+		echo "ставлю alsa-fx (фильтры тракта ассистента)..."
+		"$BUILD/sbin/apk.static" --root "$ROOTFS_APK" --arch aarch64 --allow-untrusted \
+			--keys-dir "$BUILD/apk-keys" --repositories-file "$BUILD/repositories.txt" \
+			--cache-dir "$BUILD/apk-cache" --no-progress \
+			add "$BUILD"/custom-repo/aarch64/alsa-fx-*.apk
+	fi
+
 	echo "накатываю шаблон..."
 	overlay_template
 
