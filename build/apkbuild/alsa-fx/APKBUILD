@@ -2,7 +2,7 @@
 # Бинарник (musl aarch64) кладётся рядом с APKBUILD оператором вручную.
 pkgname=alsa-fx
 pkgver=1.0
-pkgrel=0
+pkgrel=1
 pkgdesc="ALSA PCM effect plugins"
 url="https://localhost/"
 arch="aarch64"
@@ -17,5 +17,5 @@ package() {
 }
 
 sha512sums="
-	f97dfa5c5eff7a10d0a446312c9f12c395f571d7cf820815e21c0182af19a23ee51e3261bc8f8a63245c84ff15f3b317d4d7c4207ac20b1d315782926f70b8d1  libasound_module_pcm_single_plugin.so
+	664b4d2c98d8e0a355b2ad670cf86f6eed3c4deec3b32bddf07dc37e89e49389aca4233ef4b95ed9625d5bba296d0e68792a5b86fb7448f98968b1cb1b7e3406  libasound_module_pcm_single_plugin.so
 "
