@@ -77,6 +77,5 @@ pulseaudio
 gl-stub
 upmpdcli
 mpd
-spotifyd
 fftw-single-libs
 libstdc++
