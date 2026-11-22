@@ -1,5 +1,5 @@
-# Звук: DSP-обработка (BF/AEC/AGC) живёт В ALSA (asound.conf pcm.single_plugin),
-# PA только маршрутизирует.
+# Звук, вариант single_plugin (сток nastia-тракт): DSP-обработка (kf+athena BF+spp+saec)
+# живёт В ALSA (asound.conf pcm.single_plugin), PA только маршрутизирует.
 # Референс AEC — аппаратный loopback hw:0,2 (тап кодека), вычитается ВСЁ,
 # что играет железо, независимо от PA-структуры sink'ов.
 # Роли (громкость регулируемая):
@@ -11,10 +11,10 @@
 load-module module-device-restore
 load-module module-alsa-sink device=hw:0,0
 # Готовый тракт ассистента из ALSA (kf+BF+AEC+spp, 16k mono, AGC в DSP).
-# Без micboost: AGC в DSP сам тянет уровень к таргету.
+# Без micboost: в стоке softvol на микрофоне нет, AGC в DSP сам тянет к таргету.
 load-module module-alsa-source mmap=no device=single_plugin format=s16 channels=1 rate=16000 source_name=speex
-# Сырые мики 4ch — для диагностики/сравнения.
-load-module module-alsa-source device=mics format=s16 channels=4 rate=16000 channel_map=aux0,aux1,aux2,aux3 source_name=mics
+# Сырые мики 4ch — для диагностики/сравнения (сток их тоже грузил).
+#load-module module-alsa-source device=mics format=s16 channels=4 rate=16000 channel_map=aux0,aux1,aux2,aux3 source_name=mics
 
 # AEC теперь В DSP — sink-каскад как в webrtc-схеме не нужен: роли цепляются
 # напрямую к физическому sink. Всё, что играет кодек, вычитается аппаратным
