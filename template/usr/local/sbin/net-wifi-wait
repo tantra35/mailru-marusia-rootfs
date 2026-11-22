@@ -4,7 +4,9 @@ ls /var/lib/iwd/*.psk >/dev/null 2>&1 || exit 0
 # DHCPv4 как у автора (wifi-connect-iwd:278): ассоциацию делает iwd,
 # адрес - udhcpc (EnableNetworkConfiguration в main.conf выключен).
 # -b: уйти в фон и долбить ретраи, пока iwd не свяжется с сетью.
-udhcpc -b -R -p /var/run/udhcpc.wlan0.pid -i wlan0 >/dev/null 2>&1
+# -x hostname: опция 12 DHCP — чтобы имя колонки видно на DHCP-сервере
+# (берём из /etc/hostname: скрипт один на обе платы, имена разные).
+udhcpc -b -R -x hostname:"$(hostname)" -p /var/run/udhcpc.wlan0.pid -i wlan0 >/dev/null 2>&1
 n=0
 while [ $n -lt 120 ]; do
     ip -4 addr show dev wlan0 2>/dev/null | grep -q inet && exit 0
