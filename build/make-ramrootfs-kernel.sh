@@ -104,5 +104,5 @@ f.write(bytes(d))
 f.close()
 EOF
 
-cp "$KSRC/arch/arm64/boot/Image" "$B/../Image-ramrootfs-scan"
-echo "=== ГОТОВО: $B/../Image-ramrootfs-scan ($(stat -c%s "$B/../Image-ramrootfs-scan") байт) ==="
+cp "$KSRC/arch/arm64/boot/Image" "$B/Image-ramrootfs-scan"
+echo "=== ГОТОВО: $B/Image-ramrootfs-scan ($(stat -c%s "$B/Image-ramrootfs-scan") байт) ==="

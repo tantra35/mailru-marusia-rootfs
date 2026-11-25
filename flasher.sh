@@ -45,7 +45,7 @@ STOCK="${STOCK:-$(_first stock -d)}"
 #   SCAN_IMAGE сканер bad-PEB (initramfs-scan)  -> пункты 4 и 5
 #   SPI_IMAGE  RAM-тест кольца (initramfs-spi)  -> пункт 9
 # RECOVERY читается только для совместимости со старыми обёртками.
-SCAN_IMAGE="${SCAN_IMAGE:-${RECOVERY:-$(_first Image-ramrootfs-scan -f)}}"
+SCAN_IMAGE="${SCAN_IMAGE:-${RECOVERY:-$HERE/build/Image-ramrootfs-scan}}"
 SPI_IMAGE="${SPI_IMAGE:-$HERE/build/Image-ramrootfs-spi}"
 
 IDENTIFY_TIMEOUT="${IDENTIFY_TIMEOUT:-120}"
