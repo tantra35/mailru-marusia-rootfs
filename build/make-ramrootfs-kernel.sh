@@ -5,8 +5,8 @@
 # слепым перебором 2026-11-14: с initrd-аргументом ядро не стартует, без —
 # стартует). Как у автора: CONFIG_INITRAMFS_SOURCE + marusia_mini_ram.config.
 #
-# Результат: build/Image-ramrootfs (text_offset=0x1080000, как у автора —
-# booti кладёт образ ровно в KERNEL_ADDR). Пункт 5 flasher.sh.
+# Результат: build/Image-ramrootfs-scan (text_offset=0x1080000, как у автора —
+# booti кладёт образ ровно в KERNEL_ADDR). Пункты 4 и 5 flasher.sh (SCAN_IMAGE).
 #
 # Запуск: ./build/make-ramrootfs-kernel.sh
 # Тулчейн: gcc-aarch64-linux-gnu (apt). Исходники: ~/Загрузки/marusia/kernel-src
@@ -104,5 +104,5 @@ f.write(bytes(d))
 f.close()
 EOF
 
-cp "$KSRC/arch/arm64/boot/Image" "$B/../Image-ramrootfs"
-echo "=== ГОТОВО: $B/../Image-ramrootfs ($(stat -c%s "$B/../Image-ramrootfs") байт) ==="
+cp "$KSRC/arch/arm64/boot/Image" "$B/../Image-ramrootfs-scan"
+echo "=== ГОТОВО: $B/../Image-ramrootfs-scan ($(stat -c%s "$B/../Image-ramrootfs-scan") байт) ==="

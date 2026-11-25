@@ -39,7 +39,14 @@ ROOTFS_UBI="${ROOTFS_UBI:-$FW_ALPINE/alpine3.24.1_rootfs.ubi}"
 
 STOCK="${STOCK:-$(_first stock -d)}"
 
-RECOVERY="${RECOVERY:-$(_first Image-ramrootfs -f)}"
+# RAM-образы РАЗДЕЛЕНЫ ПО НАЗНАЧЕНИЮ (инцидент 2026-11-25: один RECOVERY
+# обслуживал пункты 4/5/9, его дефолт — сканер PEB — молча грузился и при
+# RAM-тесте кольца; дефолт пункта 9 был мёртв из-за :-):
+#   SCAN_IMAGE сканер bad-PEB (initramfs-scan)  -> пункты 4 и 5
+#   SPI_IMAGE  RAM-тест кольца (initramfs-spi)  -> пункт 9
+# RECOVERY читается только для совместимости со старыми обёртками.
+SCAN_IMAGE="${SCAN_IMAGE:-${RECOVERY:-$(_first Image-ramrootfs-scan -f)}}"
+SPI_IMAGE="${SPI_IMAGE:-$HERE/build/Image-ramrootfs-spi}"
 
 IDENTIFY_TIMEOUT="${IDENTIFY_TIMEOUT:-120}"
 IDENTIFY_POLL="${IDENTIFY_POLL:-0.1}"
@@ -1126,6 +1133,23 @@ item_flash() {
 		return
 	}
 
+	# RAM-образы (сканер PEB, spi-тест) со вшитым initramfs — только для
+	# загрузки в ОЗУ. Во флеш им путь закрыт: затёртое ими ядро = кирпич
+	# с «сканером» вместо боевой системы (инцидент-подозрение 2026-11-25).
+	# Обход — только явно: FORCE_RAMFLASH=1.
+	case $IMAGE in
+	*ramrootfs*)
+		[ "${FORCE_RAMFLASH:-0}" = 1 ] || {
+			dialog --msgbox "\
+$IMAGE — RAM-образ (initramfs вшит), в раздел ядра его писать нельзя.
+
+Для теста кольца: пункт 9 меню (или ram-spi-test.sh).
+Для скана bad-PEB: пункт 5.
+Если очень нужно прошить именно его: FORCE_RAMFLASH=1." 14 74
+			return
+		} ;;
+	esac
+
 	if [ "$ksize" -gt $(( $((DTB_OFF)) - $((KERNEL_OFF)) )) ]; then
 		dialog --msgbox "Ядро $((ksize / 1048576)) МиБ не влезает в раздел $(( ($((DTB_OFF)) - $((KERNEL_OFF))) / 1048576 )) МиБ." 7 66
 		return
@@ -1373,13 +1397,13 @@ bootcmd, bootdelay. Прочитано обратно в
 }
 
 item_recovery() {
-	require_files "Что нужно для аварийной загрузки" "$RECOVERY" "$DTB"
+	require_files "Что нужно для аварийной загрузки" "$SCAN_IMAGE" "$DTB"
 
-	[ -f "$RECOVERY" ] || {
+	[ -f "$SCAN_IMAGE" ] || {
 		dialog --msgbox "\
 Образа аварийной системы нет. Положите его сюда:
 
-  $RECOVERY
+  $SCAN_IMAGE
 
 Это ядро, собранное с рутфсом внутри." 14 74
 		return
@@ -1387,20 +1411,20 @@ item_recovery() {
 
 	# Тот же заголовок, что и у прошиваемого ядра, и по той же причине: booti
 	# кладёт образ по SDRAM_BASE + text_offset, а SDRAM_BASE здесь ноль.
-	image_is_adapted "$RECOVERY" || {
+	image_is_adapted "$SCAN_IMAGE" || {
 		dialog --msgbox "\
-У $RECOVERY нулевой text_offset." 11 74
+У $SCAN_IMAGE нулевой text_offset." 11 74
 		return
 	}
 
 	ensure_online || return
 
 	if [ "$dry_run" = 1 ]; then
-		dialog --msgbox "сухой прогон: отправил бы $RECOVERY в ОЗУ" 7 58
+		dialog --msgbox "сухой прогон: отправил бы $SCAN_IMAGE в ОЗУ" 7 58
 		return
 	fi
 
-	mwrite_to_ram "$RECOVERY" "$KERNEL_ADDR" "аварийное ядро" || return
+	mwrite_to_ram "$SCAN_IMAGE" "$KERNEL_ADDR" "аварийное ядро" || return
 	mwrite_to_ram "$DTB" "$DTB_ADDR" "дерево устройств" || return
 
 	# booti вызывает image_setup_libfdt, а тот переписывает /chosen/bootargs
@@ -1422,17 +1446,18 @@ item_recovery() {
 
 # Скан плохих PEB: ядро + initramfs целиком в RAM, NAND только читается.
 # Нужен, когда на плате ещё нет/сломан rootfs и по ssh скан не запустить.
-# RAM: тестовая сборка — загрузить ядро+initramfs из $RECOVERY в ОЗУ и
+# RAM-тест кольца (spi-test): собственный образ SPI_IMAGE, НЕ сканер PEB.
+# Тестовая сборка — загрузить ядро+initramfs из $SPI_IMAGE в ОЗУ и
 # предложить провалиться в консоль платы. Никакого gauge: это не скан.
 item_ram_test() {
-	require_files "Тестовая RAM-сборка" "$RECOVERY" "$DTB" || return
+	require_files "RAM-тест кольца (spi-test, НЕ сканер PEB)" "$SPI_IMAGE" "$DTB" || return
 
-	image_is_adapted "$RECOVERY" || {
-		dialog --msgbox "У $RECOVERY нулевой text_offset." 11 74
+	image_is_adapted "$SPI_IMAGE" || {
+		dialog --msgbox "У $SPI_IMAGE нулевой text_offset." 11 74
 		return
 	}
 
-	mwrite_to_ram "$RECOVERY" "$KERNEL_ADDR" ядро || return
+	mwrite_to_ram "$SPI_IMAGE" "$KERNEL_ADDR" ядро || return
 	mwrite_to_ram "$DTB" "$DTB_ADDR" "дерево устройств" || return
 
 	set_long_var bootargs \
@@ -1487,13 +1512,13 @@ OK — провалиться в консоль платы (выход из ко
 # Вывод через USB-C (ACM-gadget, /dev/ttyACM0), UART - запасной канал.
 # Список сохраняется в bad-pebs-<имя>.txt рядом с flasher.sh.
 item_scan_pebs() {
-	require_files "Что нужно для скана плохих PEB" "$RECOVERY" "$DTB" || return
+	require_files "Что нужно для скана плохих PEB" "$SCAN_IMAGE" "$DTB" || return
 
 	# Тот же заголовок, что и у прошиваемого ядра: booti кладёт образ по
 	# SDRAM_BASE + text_offset, а SDRAM_BASE здесь ноль.
-	image_is_adapted "$RECOVERY" || {
+	image_is_adapted "$SCAN_IMAGE" || {
 		dialog --msgbox "\
-У $RECOVERY нулевой text_offset." 11 74
+У $SCAN_IMAGE нулевой text_offset." 11 74
 		return
 	}
 
@@ -1505,9 +1530,9 @@ item_scan_pebs() {
 	fi
 
 	# Вендорский booti НЕ принимает отдельный initrd (слепой перебор
-	# 2026-11-14), поэтому initramfs вшит в Image-ramrootfs
+	# 2026-11-14), поэтому initramfs вшит в Image-ramrootfs-scan
 	# (build/make-ramrootfs-kernel.sh).
-	mwrite_to_ram "$RECOVERY" "$KERNEL_ADDR" ядро || return
+	mwrite_to_ram "$SCAN_IMAGE" "$KERNEL_ADDR" ядро || return
 	mwrite_to_ram "$DTB" "$DTB_ADDR" "дерево устройств" || return
 
 	# booti вызывает image_setup_libfdt, а тот переписывает /chosen/bootargs
@@ -1950,7 +1975,7 @@ while :; do
 	6) item_restore_stock ;;
 	7) item_uboot_shell ;;
 	8) item_reboot ;;
-	9) RECOVERY="${RECOVERY:-$HERE/build/Image-ramrootfs-spi}" item_ram_test ;;
+	9) item_ram_test ;;
 	10) break ;;
 	esac
 

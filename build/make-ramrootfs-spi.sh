@@ -8,7 +8,8 @@
 #
 # Запуск: SPI_TEST=/tmp/spi-test-arm64 ./build/make-ramrootfs-spi.sh
 # Результат: build/Image-ramrootfs-spi (text_offset=0x1080000).
-# Загрузка:  RECOVERY=$PWD/Image-ramrootfs-spi ./flasher.sh 5
+# Загрузка: sudo ~/Загрузки/marusia/ram-spi-test.sh  (= flasher.sh, пункт 9,
+# переменная SPI_IMAGE; пункт 5 и SCAN_IMAGE — это СКАНЕР PEB, не путать).
 set -euo pipefail
 
 B="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

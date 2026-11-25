@@ -45,7 +45,7 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 | `bad-pebs-shtab.txt` (рядом с репо, в git **не входит**) | **Плохие PEB штабовой колонки** — обход при прошивке. Для другой платы свой файл через `BAD_PEB_FILE` |
 | `build/scan-bad-pebs` | Сканер плохих PEB: на живой плате из `/tmp` (ramfs) или внутри initramfs (`/scan`) |
 | `build/initramfs-init` + `build/scan-bad-pebs` | Сканер и его initramfs-«рутфс» (busybox+musl) |
-| `build/make-ramrootfs-kernel.sh` | Сборка `Image-ramrootfs`: ядро автора со вшитым сканером (INITRAMFS_SOURCE, text_offset=0x1080000) для пункта 5 flasher.sh |
+| `build/make-ramrootfs-kernel.sh` | Сборка `Image-ramrootfs-scan`: ядро автора со вшитым сканером (INITRAMFS_SOURCE, text_offset=0x1080000) для пунктов 4/5 flasher.sh (переменная SCAN_IMAGE) |
 | `flasher.sh` | Прошивальщик: USB-burn (окно 450 мс), бэкап, raw-запись сегментами |
 | `build-rootfs.sh` | Сборка дерева rootfs с нуля (apk-init + оверлей) |
 | `marusia_defconfig` | Kernel defconfig для ядра автора |
@@ -124,7 +124,7 @@ scp build/scan-bad-pebs root@<IP>:/tmp/
 ssh root@<IP> 'sh /tmp/scan-bad-pebs > /tmp/bad-pebs-<имя>.txt'
 scp root@<IP>:/tmp/bad-pebs-<имя>.txt .   # рядом с репо; файлы в git не входят
 ```
-2. **Плата пустая/руфс сломан** — RAM-сканер flasher.sh (пункт 5 «Скан плохих PEB»): в ОЗУ грузится `Image-ramrootfs` — ядро автора **со вшитым initramfs-сканером** (собирается `build/make-ramrootfs-kernel.sh`; нужен кросс-тулчейн `gcc-aarch64-linux-gnu flex bison libssl-dev` и исходники ядра в `~/Загрузки/marusia/kernel-src`). NAND только читается. Вендорский booti отдельный initrd НЕ принимает — поэтому initramfs вшит в Image. Вывод идёт через **USB-C** (ACM-gadget → `/dev/ttyACM0`) — flasher показывает лог живьём и сохраняет список в `bad-pebs-<имя>.txt`; UART — запасной канал, список там между маркерами `# === 8< ===`.
+2. **Плата пустая/руфс сломан** — RAM-сканер flasher.sh (пункт 5 «Скан плохих PEB»): в ОЗУ грузится `Image-ramrootfs-scan` — ядро автора **со вшитым initramfs-сканером** (собирается `build/make-ramrootfs-kernel.sh`; нужен кросс-тулчейн `gcc-aarch64-linux-gnu flex bison libssl-dev` и исходники ядра в `~/Загрузки/marusia/kernel-src`). NAND только читается. Вендорский booti отдельный initrd НЕ принимает — поэтому initramfs вшит в Image. Вывод идёт через **USB-C** (ACM-gadget → `/dev/ttyACM0`) — flasher показывает лог живьём и сохраняет список в `bad-pebs-<имя>.txt`; UART — запасной канал, список там между маркерами `# === 8< ===`.
 
 Ловит заводские bad-блоки и PEB с неисправимой ECC («error -74»); исправимые битфлипы не видит (за ними следит `ubihealthd`). Старый способ тоже работает: `dmesg` (`bad node at LEB N` → PEB N+2).
 
