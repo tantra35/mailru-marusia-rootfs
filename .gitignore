@@ -12,7 +12,7 @@
 12:build/signing/*.rsa
 13:chroot/
 14:gen_init_cpio
-15:Image-ramrootfs
+Image-ramrootfs-*
 16:initramfs-scan/
 17:*.log
 18:# per-плата списки плохих PEB — частная история, живут рядом с flasher.sh
@@ -26,9 +26,9 @@
 26:template/etc/ssh/ssh_host_ed25519_key
 27:template/etc/ssh/ssh_host_rsa_key
 28:*.ubi
-29:build/initramfs-spi/
-30:build/Image-spi-live
-31:build/Image-ramrootfs-spi
+build/initramfs-spi/
+build/Image-ramrootfs-scan
+build/Image-ramrootfs-spi
 32:# build output
 33:build/apkbuild/alsa-fx/*.so
 build/signing/*.rsa
