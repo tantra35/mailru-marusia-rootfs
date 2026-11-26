@@ -1,11 +1,10 @@
 # mailru-marusia-rootfs
 
-Воспроизводимая сборка Alpine Linux rootfs для **VK Capsula Mini (Mail.ru Маруся)** на Amlogic A113X — с полностью сетевым аудио: микрофон и динамик колонки доступны по TCP 4713 (PulseAudio), DLNA-рендерер «Marusia», mpd + upmpdcli, Spotify Connect (spotifyd), sshd.
+Воспроизводимая сборка Alpine Linux rootfs для **VK Capsula Mini (Mail.ru Маруся)** на Amlogic A113X — с полностью сетевым аудио: микрофон и динамик колонки доступны по TCP 4713 (PulseAudio), DLNA-рендерер «Marusia-<плата>», mpd + upmpdcli + marusia-d (панель/кнопки/кольцо/MPD-прокси), sshd.
 
 ```
-NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофон PDM + динамик
-телефон ───────DLNA──> «Marusia» (upmpdcli) → mpd (:6600) → PulseAudio
-телефон ───Spotify Connect──> spotifyd → PulseAudio
+NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофон PDM + динамик (DSP-очистка single_plugin)
+телефон ───────DLNA──> «Marusia-<плата>» (upmpdcli) → marusia-d (:6600, MPD-прокси) → mpd (:6601) → PulseAudio
 ```
 
 ## Железо
@@ -18,14 +17,15 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 ## Что внутри rootfs
 
 - Alpine Linux 3.24, OpenRC, busybox mdev
-- **PulseAudio 17.0** (своя сборка, system-mode): unix-сокет для локальных клиентов + **TCP 4713** (ACL: LAN) — микрофон и динамик колонки доступны по сети
-- **mpd 0.24.15** (своя сборка, вывод через PulseAudio) — порт 6600
-- **upmpdcli 1.9.17** — DLNA-рендерер «Marusia» (только рендерер, `openhome=0`)
-- **spotifyd 0.4.2** (Alpine community, pulseaudio-бэкенд) — Spotify Connect, авторизация через zeroconf: телефон видит колонку прямо в приложении Spotify, логин/пароль не нужны
+- **PulseAudio 17.0** (своя сборка с webrtc-audio-processing-1, system-mode): unix-сокет для локальных клиентов + **TCP 4713** (ACL: LAN) — микрофон и динамик колонки доступны по сети
+- **alsa-fx** (своя сборка) — ALSA-плагин `pcm_single_plugin` (стоковая DSP-цепочка: beamforming/AEC/AGC) между микрофонами/динамиком и PulseAudio (`asound.conf`)
+- **mpd 0.24.15** (своя сборка, вывод через PulseAudio) — порт **6601**
+- **marusia-d** (Go, [tantra35/marusia-d](https://github.com/tantra35/marusia-d)) — светодиодное кольцо, тач-панель, кнопки; MPD-прокси на **6600** (upmpdcli ходит только с ним — корректные DLNA-уведомления громкости)
+- **upmpdcli 1.9.17** — DLNA-рендерер (только рендерер, `openhome=0`); имя задаётся в платном оверлее: `friendlyname = Marusia` + `avfriendlyname = Marusia-<плата>`
 - `/lib/firmware/eq_8918.bin` — калибровка усилителя NTP8910/8918 (из расшифрованного вендор-ядра); **без неё усилитель молчит** — драйвер NTP8918 подгружает её при первом открытии PCM
 - 59 стоковых звуков в `/etc/sounds` (проигрываются `paplay`)
-- sshd, iwd + `net-wifi-wait` (после ассоциации поднимает DHCP `udhcpc` — как в авторском `wifi-connect-iwd`), bluetooth + bluealsa
-- НЕТ: pipewire, espeak, mpg123 CLI, mesa, ffmpeg
+- sshd, iwd + `net-wait` (блокирует сеть-зависимые сервисы до IPv4 на wlan0, поднимает DHCP `udhcpc`) + `net-watch` (рестарт upmpdcli при возврате адреса — SSDP после flap), bluetooth + bluealsa
+- НЕТ: pipewire, espeak, mpg123 CLI, mesa, spotifyd; ffmpeg заменён на **ffmpeg-lite** (~4–6 МиБ, audio-only, для mpd/upmpdcli)
 
 ## Структура репозитория
 
@@ -33,16 +33,15 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 |---|---|
 | `template/` | Оверлей поверх базового Alpine: конфиги, init-скрипты, звуки, пользователи, mdev.conf |
 | `rootfs/etc/apk/world` | Список пакетов (мир) для apk-init |
-| `build/rebuild.sh` | Сборка `.ubi` из дерева + обход плохих PEB (`$BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt`) |
+| `build/rebuild.sh` | Сборка `.ubi` из дерева + **платный оверлей** `../boards/<плата>/` (hostname, DLNA avfriendlyname, wifi-стейт; каталог лежит рядом с репо, в git не входит; нет папки = ошибка сборки) + обход плохих PEB (`$BAD_PEB_FILE`, по умолчанию `bad-pebs-<плата>.txt` уровнем выше репо) |
 | `build/add-mpd.sh` | Установка mpd+upmpdcli в дерево, конфиги, группы |
-| `build/add-spotifyd.sh` | Установка spotifyd (Spotify Connect) в дерево: пакет, юзер, pulse-access, init.d + рунлевел |
 | `build/bootstrap-chroot.sh` / `finish-chroot.sh` | Развёртывание chroot-сборщика под qemu-aarch64 |
 | `build/simple-image.sh` | Упрощённая упаковка (без обхода bad PEB) |
-| `build/custom-repo/aarch64/*.apk` | Наши пакеты: pulseaudio-r100, mpd-r100, gl-stub |
-| `build/apkbuild/` | APKBUILD'ы (mpd, pulseaudio, gl-stub, pipewire-архив) |
+| `build/custom-repo/aarch64/*.apk` | Наши пакеты: pulseaudio/libpulse-r100, mpd-r100, gl-stub, alsa-fx, ffmpeg-lite, pipewire (архив) |
+| `build/apkbuild/` | APKBUILD'ы (mpd, pulseaudio, gl-stub, alsa-fx, ffmpeg, webrtc-audio-processing-1, pipewire-архив) |
 | `build/sbin/apk.static` | apk-tools-static (x86_64) |
 | `build/repositories.txt` | Alpine 3.24 + наш custom-repo |
-| `bad-pebs-shtab.txt` (рядом с репо, в git **не входит**) | **Плохие PEB штабовой колонки** — обход при прошивке. Для другой платы свой файл через `BAD_PEB_FILE` |
+| `bad-pebs-<плата>.txt` (рядом с репо, в git **не входят**) | **Плохие PEB конкретной колонки** — обход при сборке и прошивке. Пустой/отсутствующий файл = образ без дыр |
 | `build/scan-bad-pebs` | Сканер плохих PEB: на живой плате из `/tmp` (ramfs) или внутри initramfs (`/scan`) |
 | `build/initramfs-init` + `build/scan-bad-pebs` | Сканер и его initramfs-«рутфс» (busybox+musl) |
 | `build/make-ramrootfs-kernel.sh` | Сборка `Image-ramrootfs-scan`: ядро автора со вшитым сканером (INITRAMFS_SOURCE, text_offset=0x1080000) для пунктов 4/5 flasher.sh (переменная SCAN_IMAGE) |
@@ -90,7 +89,7 @@ sudo ./build/add-mpd.sh
 sudo ./build/rebuild.sh
 ```
 
-Результат: `build/rootfs-custom-<BOARD>.ubi` (`BOARD` по умолчанию `shtab`, ~106 МиБ; для другой платы — `BOARD=nova sudo bash build/rebuild.sh`).
+Результат: `build/rootfs-custom-<BOARD>.ubi` (`BOARD` по умолчанию `shtab`, ~106 МиБ; для другой платы — `BOARD=nova ./build/rebuild.sh` под root; каталог `../boards/nova/` с hostname/DLNA/wifi должен существовать).
 
 ### Откуда берутся кастомные пакеты
 
@@ -114,7 +113,7 @@ NAND-память колонки может содержать **плохие б
 ./flasher.sh   # пункт 3 меню
 ```
 
-`flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `bad-pebs-shtab.txt` уровнем выше репо). Какой образ шить и какой bad-файл брать, flasher определяет по выбранной плате сам: `build/rootfs-custom-<плата>.ubi` (префикс `marusia-` у каталога платы из `flasher_stuff/` отбрасывается); явные `ROOTFS_UBI`/`BAD_PEB_FILE` из окружения сильнее автоопределения. Обёртки `flash-custom-root-*.sh` — просто способ передать эти пути через окружение (**обязательно `export`**: неэкспортированная переменная умирает на `exec` и флешер молча возьмёт стоковый образ).
+`flasher.sh` (пункт 3) стирает регион rootfs и пишет образ **сегментами**, пропуская деградировавшие блоки NAND из bad-pebs-файла (путь: переменная `BAD_PEB_FILE`, по умолчанию `bad-pebs-<плата>.txt` уровнем выше репо). Какой образ шить и какой bad-файл брать, flasher определяет по выбранной плате сам: `build/rootfs-custom-<плата>.ubi` (префикс `marusia-` у каталога платы из `flasher_stuff/` отбрасывается); явные `ROOTFS_UBI`/`BAD_PEB_FILE` из окружения сильнее автоопределения. Обёртки `flash-custom-root-<плата>.sh` (рядом с репо, вне git) — полный цикл: собирают образ если его ещё нет (`FORCE_BUILD=1` — пересборка), передают пути через окружение (**обязательно `export`**: неэкспортированная переменная умирает на `exec` и флешер молча возьмёт стоковый образ) и гасят фолбэк на чужой bad-pebs-список; root не нужен — обёртка сама делает `exec pkexec`.
 
 **Как снять список плохих PEB с конкретной платы** — `build/scan-bad-pebs`, две роли:
 
@@ -133,12 +132,12 @@ scp root@<IP>:/tmp/bad-pebs-<имя>.txt .   # рядом с репо; файл�
 BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt build/rebuild.sh
 BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt ./flasher.sh
 ```
-По умолчанию оба берут `bad-pebs-shtab.txt` уровнем выше репо (штабовая колонка); эти файлы — частная история плат, в git не входят. Пустой/отсутствующий файл = образ без дыр.
+По умолчанию `rebuild.sh` берёт `bad-pebs-<BOARD>.txt`, flasher — bad-pebs-файл выбранной платы (фолбэк для совместимости — `bad-pebs-shtab.txt`); эти файлы — частная история плат, в git не входят. Пустой/отсутствующий файл = образ без дыр.
 
 После первой загрузки всё поднимается само (порядок: `iwd` → `net-wait`, он же поднимает `udhcpc` → `alsa` (restore микшера) → `pulseaudio` → `mpd` → `upmpdcli` → `marusia-d` → `sshd`):
-1. WiFi: PSK уже вшит в `/var/lib/iwd` — подключится сам, адрес придёт по DHCP
-2. `ssh root@<IP>` — пароль в `shtab-private/shadow` (в публичном README не публикуется)
-3. Spotify Connect: телефон → приложение Spotify → «Devices» → колонка
+1. WiFi: PSK уже вшит в `/var/lib/iwd` (из платного оверлея) — подключится сам, адрес придёт по DHCP, hostname в DHCP = `marusia-<плата>`
+2. `ssh root@<IP>` — root-пароль задан в дереве (`etc/shadow`, меняется до сборки; в README не публикуется)
+3. DLNA: телефон → контроллер (BubbleUPnP и т.п.) → рендерер «Marusia-<плата>»
 
 ## Известные особенности
 
@@ -147,8 +146,8 @@ BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt ./flasher.sh
 - Полная перепрошивка стирает `/var/lib/iwd`, но PSK-файл вшит в образ — WiFi автоподключается при первом буте.
 - **Владельцы /var**: `rebuild.sh` выставляет сервисные uid/gid числами (pulse 104:106, mpd 103:18, upmpdcli 105:105, chrony 100:101, `/var/empty` root 711) — дерево собирается от uid 1000, и без нормализации демоны падают на правах доступа (pulseaudio — на tdb-базах, sshd — на `/var/empty`).
 - `mkfs.ubifs` собирается **без** `-F` (SPACE_FIXUP): флешер стирает весь регион перед записью, fixup-бурст на деградировавшем NAND опасен (приводил к коррупции индекса /usr/lib).
-- Вход горячий: PDM пишет с пиком ~44%; для LVA при необходимости `pactl set-source-volume alsa_input.hw_0_1 80%`.
-- `hw:0,2` (второй capture-линк) — не подключён (RMS 0), рабочие микрофоны только на `hw:0,1`.
+- **Аудио-тракт**: микрофоны и динамик идут через ALSA-плагин `single_plugin` (`asound.conf`, capture/playback-PCM `hw:0,2`, stok-овая DSP-цепочка beamforming/AEC/AGC); PulseAudio работает поверх этих виртуальных PCM. Прямой доступ к `hw:0,1` при живом PulseAudio занят — захват только через сеть (tcp:4713).
+- **Громкость DLNA**: mpd работает с `mixer_type none`; громкость рендерера ведёт `marusia-d` (MPD-прокси :6600), поэтому контроллеры получают корректные volume-уведомления.
 
 ## Благодарности
 
