@@ -21,11 +21,12 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 - **alsa-fx** (своя сборка) — ALSA-плагин `pcm_single_plugin` (стоковая DSP-цепочка: beamforming/AEC/AGC) между микрофонами/динамиком и PulseAudio (`asound.conf`)
 - **mpd 0.24.15** (своя сборка, вывод через PulseAudio) — порт **6601**
 - **marusia-d** (Go, [tantra35/marusia-d](https://github.com/tantra35/marusia-d)) — светодиодное кольцо, тач-панель, кнопки; MPD-прокси на **6600** (upmpdcli ходит только с ним — корректные DLNA-уведомления громкости)
-- **upmpdcli 1.9.17** — DLNA-рендерер (только рендерер, `openhome=0`); имя задаётся в платном оверлее: `friendlyname = Marusia` + `avfriendlyname = Marusia-<плата>`
+- **upmpdcli 1.9.17** — DLNA-рендерер (только рендерер, `openhome=0`); имя переопределяется в кастомизированных файлах платы (`boards/<плата>/etc/upmpdcli.conf`): `friendlyname = Marusia` + `avfriendlyname = Marusia-<плата>`
+- **ffmpeg-lite** (своя сборка, ~4–6 МиБ, audio-only) — замена полного ffmpeg, нужен mpd/upmpdcli
 - `/lib/firmware/eq_8918.bin` — калибровка усилителя NTP8910/8918 (из расшифрованного вендор-ядра); **без неё усилитель молчит** — драйвер NTP8918 подгружает её при первом открытии PCM
 - 59 стоковых звуков в `/etc/sounds` (проигрываются `paplay`)
 - sshd, iwd + `net-wait` (блокирует сеть-зависимые сервисы до IPv4 на wlan0, поднимает DHCP `udhcpc`) + `net-watch` (рестарт upmpdcli при возврате адреса — SSDP после flap), bluetooth + bluealsa
-- НЕТ: pipewire, espeak, mpg123 CLI, mesa, spotifyd; ffmpeg заменён на **ffmpeg-lite** (~4–6 МиБ, audio-only, для mpd/upmpdcli)
+- НЕТ: pipewire, espeak, mpg123 CLI, mesa, spotifyd, полный ffmpeg
 
 ## Структура репозитория
 
@@ -33,7 +34,7 @@ NanoPi6 (LVA) ──WiFi──> tcp://<колонка>:4713  ← микрофо�
 |---|---|
 | `template/` | Оверлей поверх базового Alpine: конфиги, init-скрипты, звуки, пользователи, mdev.conf |
 | `rootfs/etc/apk/world` | Список пакетов (мир) для apk-init |
-| `build/rebuild.sh` | Сборка `.ubi` из дерева + **платный оверлей** `../boards/<плата>/` (hostname, DLNA avfriendlyname, wifi-стейт; каталог лежит рядом с репо, в git не входит; нет папки = ошибка сборки) + обход плохих PEB (`$BAD_PEB_FILE`, по умолчанию `bad-pebs-<плата>.txt` уровнем выше репо) |
+| `build/rebuild.sh` | Сборка `.ubi` из дерева + **кастомизация платы** `../boards/<плата>/` (hostname, DLNA avfriendlyname, wifi-стейт; каталог лежит рядом с репо, в git не входит; нет папки = ошибка сборки) + обход плохих PEB (`$BAD_PEB_FILE`, по умолчанию `bad-pebs-<плата>.txt` уровнем выше репо) |
 | `build/add-mpd.sh` | Установка mpd+upmpdcli в дерево, конфиги, группы |
 | `build/bootstrap-chroot.sh` / `finish-chroot.sh` | Развёртывание chroot-сборщика под qemu-aarch64 |
 | `build/simple-image.sh` | Упрощённая упаковка (без обхода bad PEB) |
@@ -135,7 +136,7 @@ BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt ./flasher.sh
 По умолчанию `rebuild.sh` берёт `bad-pebs-<BOARD>.txt`, flasher — bad-pebs-файл выбранной платы (фолбэк для совместимости — `bad-pebs-shtab.txt`); эти файлы — частная история плат, в git не входят. Пустой/отсутствующий файл = образ без дыр.
 
 После первой загрузки всё поднимается само (порядок: `iwd` → `net-wait`, он же поднимает `udhcpc` → `alsa` (restore микшера) → `pulseaudio` → `mpd` → `upmpdcli` → `marusia-d` → `sshd`):
-1. WiFi: PSK уже вшит в `/var/lib/iwd` (из платного оверлея) — подключится сам, адрес придёт по DHCP, hostname в DHCP = `marusia-<плата>`
+1. WiFi: PSK уже вшит в `/var/lib/iwd` (из файлов платы `boards/<плата>/`) — подключится сам, адрес придёт по DHCP, hostname в DHCP = `marusia-<плата>`
 2. `ssh root@<IP>` — root-пароль задан в дереве (`etc/shadow`, меняется до сборки; в README не публикуется)
 3. DLNA: телефон → контроллер (BubbleUPnP и т.п.) → рендерер «Marusia-<плата>»
 
