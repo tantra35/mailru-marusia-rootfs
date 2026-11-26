@@ -137,7 +137,7 @@ BAD_PEB_FILE=$HOME/Загрузки/marusia/bad-pebs-<имя>.txt ./flasher.sh
 
 После первой загрузки всё поднимается само (порядок: `iwd` → `net-wait`, он же поднимает `udhcpc` → `alsa` (restore микшера) → `pulseaudio` → `mpd` → `upmpdcli` → `marusia-d` → `sshd`):
 1. WiFi: PSK уже вшит в `/var/lib/iwd` (из файлов платы `boards/<плата>/`) — подключится сам, адрес придёт по DHCP, hostname в DHCP = `marusia-<плата>`
-2. `ssh root@<IP>` — root-пароль задан в дереве (`etc/shadow`, меняется до сборки; в README не публикуется)
+2. `ssh root@<IP>` — root-пароль задаётся в файлах платы (`boards/<плата>/etc/shadow`, меняется до сборки; в README не публикуется)
 3. DLNA: телефон → контроллер (BubbleUPnP и т.п.) → рендерер «Marusia-<плата>»
 
 ## Известные особенности

@@ -22,7 +22,7 @@ cp -a "$B/rootfs" "$B/chroot/tmp/tree"
 stem="${BOARD#marusia-}"
 OVERLAY="$(cd -- "$B/.." && pwd)/boards/$stem"
 if [ ! -d "$OVERLAY" ]; then
-	echo "НЕТ ОВЕРЛЕЯ ПЛАТЫ: $OVERLAY (нужны etc/hostname, etc/upmpdcli.conf, var/lib/iwd/)" >&2
+	echo "НЕТ ОВЕРЛЕЯ ПЛАТЫ: $OVERLAY (нужны etc/hostname, etc/upmpdcli.conf, etc/shadow, var/lib/iwd/)" >&2
 	exit 1
 fi
 cp -a "$OVERLAY/." "$B/chroot/tmp/tree/"
