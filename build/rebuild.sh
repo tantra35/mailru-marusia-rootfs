@@ -15,6 +15,15 @@ BADPEBS="${BAD_PEB_FILE:-$(cd -- "$B/.." && pwd)/bad-pebs-$BOARD.txt}"
 rm -rf "$B/chroot/tmp/tree"
 cp -a "$B/rootfs" "$B/chroot/tmp/tree"
 
+# Платная идентичность из BOARD: hostname + DLNA-имя рендерера.
+# kuhnia -> hostname "marusia-kuhnia", avfriendlyname "Marusia-Kuhnia".
+# Общий для всех плат wifi-стейт (var/lib/iwd/m20b208.psk) лежит в дереве как есть.
+stem="${BOARD#marusia-}"
+printf 'marusia-%s\n' "$stem" > "$B/chroot/tmp/tree/etc/hostname"
+sed -i "s/^avfriendlyname = .*/avfriendlyname = Marusia-${stem^}/" \
+	"$B/chroot/tmp/tree/etc/upmpdcli.conf"
+echo "идентичность платы: hostname=marusia-$stem dlna=Marusia-${stem^}"
+
 # iwd-стейт: только root (иначе iwd игнорирует известные сети, psk читает кто попало)
 if [ -d "$B/chroot/tmp/tree/var/lib/iwd" ]; then
 	chown -R root:root "$B/chroot/tmp/tree/var/lib/iwd"
