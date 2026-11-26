@@ -15,14 +15,18 @@ BADPEBS="${BAD_PEB_FILE:-$(cd -- "$B/.." && pwd)/bad-pebs-$BOARD.txt}"
 rm -rf "$B/chroot/tmp/tree"
 cp -a "$B/rootfs" "$B/chroot/tmp/tree"
 
-# Платная идентичность из BOARD: hostname + DLNA-имя рендерера.
-# kuhnia -> hostname "marusia-kuhnia", avfriendlyname "Marusia-Kuhnia".
-# Общий для всех плат wifi-стейт (var/lib/iwd/m20b208.psk) лежит в дереве как есть.
+# Платная идентичность: оверлей из ~/Загрузки/marusia/boards/<плата>/ кладётся
+# ПОВЕРХ дерева (etc/hostname, etc/upmpdcli.conf с avfriendlyname, var/lib/iwd/*).
+# Править кастомизацию - только в этих папках; в rootfs/ и template/ её нет.
+# Папка обязательна: отсутствие = ошибка сборки (иначе в образ уйдёт shtab-дефолт).
 stem="${BOARD#marusia-}"
-printf 'marusia-%s\n' "$stem" > "$B/chroot/tmp/tree/etc/hostname"
-sed -i "s/^avfriendlyname = .*/avfriendlyname = Marusia-${stem^}/" \
-	"$B/chroot/tmp/tree/etc/upmpdcli.conf"
-echo "идентичность платы: hostname=marusia-$stem dlna=Marusia-${stem^}"
+OVERLAY="$(cd -- "$B/.." && pwd)/boards/$stem"
+if [ ! -d "$OVERLAY" ]; then
+	echo "НЕТ ОВЕРЛЕЯ ПЛАТЫ: $OVERLAY (нужны etc/hostname, etc/upmpdcli.conf, var/lib/iwd/)" >&2
+	exit 1
+fi
+cp -a "$OVERLAY/." "$B/chroot/tmp/tree/"
+echo "оверлей платы $stem: $(cd "$OVERLAY" && find . -type f | sort | tr '\n' ' ')"
 
 # iwd-стейт: только root (иначе iwd игнорирует известные сети, psk читает кто попало)
 if [ -d "$B/chroot/tmp/tree/var/lib/iwd" ]; then
